@@ -124,3 +124,109 @@ ggplot(cell_df, aes(x=decimalLongitude, y=decimalLatitude, color=log10(toads))) 
 Could remove data from clear outlier observations?
 
 What about data before 2010?
+
+
+
+
+# Machine Learning
+
+```{r}
+library(randomForest)
+library(caTools)
+```
+
+
+```{r}
+run_model <- function(data) {
+  set.seed(12345)
+
+  split <- sample.split(data, SplitRatio = 0.7) 
+    
+  train <- subset(data, split == "TRUE") 
+  test <- subset(data, split == "FALSE") 
+  
+  model <- randomForest(toads ~ mean_win_rain + mean_win_temp + mean_sum_rain + rel_humidity, data = train)
+  
+  return(model)
+}
+```
+
+
+```{r}
+set.seed(12345)
+
+split <- sample.split(cell_df, SplitRatio = 0.7) 
+  
+train <- subset(cell_df, split == "TRUE") 
+test <- subset(cell_df, split == "FALSE") 
+```
+
+```{r}
+# Define the models
+model <- randomForest(toads ~ mean_win_rain + mean_win_temp + mean_sum_rain + rel_humidity, data = train)
+model2 <- randomForest(ribbit ~ mean_win_rain + mean_win_temp + mean_sum_rain + rel_humidity, data = train)
+```
+
+```{r}
+test$model_toads <- predict(model, test)
+test$model2_toads <- predict(model2, test)
+```
+
+```{r}
+cell_df$predicted <- predict(model, cell_df)
+cell_df$predicted2 <- predict(model2, cell_df)
+```
+
+
+
+```{r}
+confusion_mtx = table(test$toads,test$model_toads) 
+```
+
+```{r}
+# Plotting model 
+plot(model2) 
+  
+# Importance plot 
+importance(model2) 
+  
+# Variable importance plot 
+varImpPlot(model2) 
+```
+
+Model 2 is way better?
+
+```{r}
+hist(log10(cell_df$predicted))
+```
+
+
+```{r}
+ggplot(train, aes(x=decimalLongitude, y=decimalLatitude, color=toads)) +
+  geom_point()
+```
+
+```{r}
+cell_df |> 
+  ggplot(aes(x=decimalLongitude, y=decimalLatitude, colour=log10(predicted))) +
+    geom_point() +
+    geom_point(data=cell_df |> filter(predicted < 0.5), colour='grey') +
+    viridis::scale_color_viridis()
+```
+
+```{r}
+millenium |> 
+  ggplot(aes(x=decimalLongitude, y=decimalLatitude, colour=log10(predicted))) +
+    geom_point() +
+    geom_point(data=millenium |> filter(predicted < 0.2), colour='grey') +
+    viridis::scale_color_viridis()
+```
+
+
+```{r}
+test |> 
+  ggplot(aes(x=decimalLongitude, y=decimalLatitude, colour=model2_toads)) +
+    geom_point() +
+    #geom_point(data=cell_df |> filter(predicted2 < 0.5), colour='grey') +
+    viridis::scale_color_viridis()
+```
