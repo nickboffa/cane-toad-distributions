@@ -1,0 +1,53 @@
+---
+title: "Data Cleaning"
+author: "Nicholas Boffa u7686660"
+date: "2024-04-28"
+output: html_document
+---
+
+```{r load-libraries}
+library(tidyverse)
+library(raster)
+```
+
+# Create Raster Brick
+
+```{r create-raster-brick}
+mean_win_temp <- raster("raw_data/climate/mean_winter_temp.asc")
+rel_humidity <- raster("raw_data/climate/rel_humidity_9am.asc")
+mean_win_rain <- raster("raw_data/climate/mean_winter_rainfall.asc")
+mean_sum_rain <- raster("raw_data/climate/mean_summer_rainfall.asc")
+
+rasters <- list(mean_win_temp, rel_humidity, mean_win_rain, mean_sum_rain)
+
+# Define a common extent
+common_extent <- extent(mean_win_temp)
+
+for (raster in rasters) {
+  common_extent <- intersect(common_extent, extent(raster))
+}
+
+# Define a common resolution
+common_res <- min(res(mean_win_temp), res(rel_humidity), 
+                  res(mean_win_rain), res(mean_sum_rain))
+
+min_res_index <- which.min(c(res(mean_win_temp), res(rel_humidity), res(mean_win_rain), res(mean_sum_rain)))
+
+raster_min_res <- rasters[[min_res_index]]
+
+# Resample rasters to the common extent and resolution
+mean_win_temp <- resample(mean_win_temp, raster_min_res, method = "bilinear")
+rel_humidity <- resample(rel_humidity, raster_min_res, method = "bilinear")
+mean_win_rain <- resample(mean_win_rain, raster_min_res, method = "bilinear")
+mean_sum_rain <- resample(mean_sum_rain, raster_min_res, method = "bilinear")
+
+# Create a raster brick
+raster_brick <- brick(mean_win_temp, rel_humidity, mean_win_rain, mean_sum_rain)
+
+plot(raster_brick)
+
+#writeRaster(raster_brick, filename="processed_data/raster_brick.grd", overwrite=TRUE)
+#filename = "raw_data/climate/mean_winter_rainfall"
+#data <- readLines(paste0(filename, ".txt")) # http://www.bom.gov.au/climate/maps/averages/temperature/?maptype=mean&period=win&region=aus
+#writeLines(data, paste0(filename, ".asc"))
+```
