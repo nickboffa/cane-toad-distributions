@@ -1,0 +1,112 @@
+---
+title: "A title for your project"
+author: "Your name and U number"
+date: "Today's date"
+output:  
+    html_document:
+        toc: true
+        toc_depth: 4
+        theme: cosmo
+        number_sections: false
+        toc_float: true
+        highlight: pygments
+        fig_width: 8
+        fig_height: 4
+---
+
+# Word/figure count
+
+Words: [The number of words in your document, calculated using the word_count() function at the end of this document]
+Figures: [The number of figures in your document. You can just count these]
+
+# Location on GitHub
+
+https://github.com/nickboffa/DS4B-final-report
+
+# Data Description
+
+[A brief (~100-200 words should be more than enough) description of the dataset, referencing any key publications that go with it]
+
+# Questions/Aims (Ramblings)
+
+[A brief section which first states and then justifies the questions/aims of your EDA. Must provide evidence of independent research into what has been done before on these questions/aims. See above for examples.]
+
+Aim: To create a shiny app that, given a species, can show it's distribution over time in Australia (as well as predict its future distribution given climate change)
+
+Justification: 
+
+Relevant articles:
+
+Modelling species presence-only data with random forests (2021)
+https://nsojournals.onlinelibrary.wiley.com/doi/full/10.1111/ecog.05615
+- Using binary data ("is toad here?" insetad of "how many toads are here") for RFs apparently worse
+- In the lingo of the article, what I'm doing is using "pseudoabsence" data?? Might also be using background samples, I'm confused by second paragraph of intro
+
+
+The cane toad's (Chaunus [Bufo] marinus) increasing ability to invade Australia is revealed by a dynamically updated range model (2007)
+https://www.researchgate.net/publication/6418721_The_cane_toad's_Chaunus_Bufo_marinus_increasing_ability_to_invade_Australia_is_revealed_by_a_dynamically_updated_range_model
+
+
+(Alternative Aim: Investigating niche breadth in mammals
+
+Justification: Niche breadth was recently investigated in Eucalypts...
+
+## How to do Aim (not alternative aim)
+
+1. Divide mainland Australia into cells (done)
+
+2.  Get following statistics for each cell:
+  - Soil composition x
+  - Köppen climate classification (biome?) x
+  - Major highways/something that takes roads into consideration - if possible, best would be number of cars/day or something (excluding major cities) x
+  - Human population density x
+  - List of other species in that cell? Therefore if two species always come together, model could predict it x
+  - Rainfall ✓
+  - Altitude x
+  - Temperature ✓
+  - (also got relative humidity for lols)
+  
+3. Pick a species (let's say cane toads, Rhinella marina)
+  - Use ALA data, together with machine learning
+
+Take all species in ALA:
+  1. Remove any species with <1000 observations
+  2. Isolate training data (only given the statistics in step 2, and the count of the number of given species occurrences there)
+  3. Run random forest
+  4. Test
+  5. Check
+  
+
+
+Also for introduced species, potentially the area where it was introduced could affect species distribution?
+
+Some kind of algorithm for determining similarity between species from 0 to 1 (using taxonomic classification)
+
+# Raw data
+
+[Explains how and where to get the exact raw data you got]
+[Is reproducible by a person (required) and a machine (ideally)]
+
+# Data wrangling
+
+[R chunks and prose which:]
+[Tidies up your raw data, outputs tidied_data.csv]
+[Cleans up your tidied data, outputs cleaned_data.csv]
+
+```{r}
+raster_brick <- brick("processed_data/raster_brick.grd") # automatically includes .gri file as well
+```
+
+# Sanity checks
+
+[R chunks and prose which perform sanity checks on your cleaned data]
+[Remember that this really just summarises that your data are OK after you've cleaned them]
+[Most of the real sanity checks and data cleaning go on in the data_cleaning.Rmd file]
+
+# Addressing the questions/aims
+
+[This is the *main* section of your work. For example, if you are doing an EDA, this is where you would summarise it. If you are building something like a package or shiny app, a description of that package / app and demonstration of its function(s) would go here. Use appropriate sub-headings.]
+
+# References
+
+[References you have cited throughout your text]
