@@ -230,3 +230,35 @@ test |>
     #geom_point(data=cell_df |> filter(predicted2 < 0.5), colour='grey') +
     viridis::scale_color_viridis()
 ```
+
+
+
+
+# Future Predicting 
+
+```{r}
+millenium <- create_cell_df(df, years_to=2000, res=0.5)
+head(millenium)
+
+
+
+mill_model <- run_model(millenium)
+
+millenium$predicted <- predict(mill_model, millenium)
+
+ggplot(millenium, aes(x=decimalLongitude, y=decimalLatitude, color=log10(predicted))) +
+  geom_point(size=1.8) +
+  viridis::scale_color_viridis()
+```
+```
+
+
+Varroa mites
+Fire ants
+Proximate Bayesian Modelling
+Use already-made shapefiles of cane toad distributions
+
+Amniote life history database
+
+
+http://www.bom.gov.au/climate/maps/averages/rainfall/
