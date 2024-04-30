@@ -5,13 +5,59 @@ date: "2024-04-28"
 output: html_document
 ---
 
+# Load Libraries
+
 ```{r load-libraries}
 library(tidyverse)
 library(raster)
+library(knitr)
 ```
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 # Create Raster Brick
 
+## Download .txt files
+
+To obtain original .txt data, from the web:
+
+1. Click the link for each file type, specified in the *table* below
+2. Find the text saying "Download: Grid"
+3. Click on the hyperlinked "Grid" to download
+
+
+```{r}
+table <- data.frame(
+  Measurement = c("Mean Winter Temperature", "Mean Summer Rainfall", "Mean Winter Rainfall", "Mean Annual Relative Humidity at 9am"),
+  Period = c("June to August 1991 to 2020", "December to February 1991 to 2020", "June to August 1991 to 2020", "1976 to 2005"),
+  Link = c("[Mean Winter Temperature Data](http://www.bom.gov.au/climate/maps/averages/temperature/?maptype=mean&period=win&region=aus)",
+           "[Mean Summer Rainfall Data](http://www.bom.gov.au/climate/maps/averages/rainfall/?period=sum&region=aus)",
+           "[Mean Winter Rainfall Data](http://www.bom.gov.au/climate/maps/averages/rainfall/?period=win&region=aus)",
+           "[Mean Annual Relative Humidity at 9am Data](http://www.bom.gov.au/climate/maps/averages/relative-humidity/)")
+)
+
+# Display table using kable
+kable(table, format = "html", escape = FALSE)
+```
+
+
+## Convert .txt raster data to .asc
+
+To load the raster .txt files as raster layers easily, we need to convert them to .asc.
+```{r}
+filenames <- c("raw_data/climate/mean_winter_temp",
+              "raw_data/climate/rel_humidity_9am",
+              "raw_data/climate/mean_winter_rainfall",
+              "raw_data/climate/mean_summer_rainfall")
+
+for (filename in filenames) {
+  data <- readLines(paste0(filename, ".txt")) 
+  writeLines(data, paste0(filename, ".asc"))
+}
+```
+
+## Load raster layers and make brick
 ```{r create-raster-brick}
 mean_win_temp <- raster("raw_data/climate/mean_winter_temp.asc")
 rel_humidity <- raster("raw_data/climate/rel_humidity_9am.asc")
@@ -23,8 +69,8 @@ rasters <- list(mean_win_temp, rel_humidity, mean_win_rain, mean_sum_rain)
 # Define a common extent
 common_extent <- extent(mean_win_temp)
 
-for (raster in rasters) {
-  common_extent <- intersect(common_extent, extent(raster))
+for (raster_layer in rasters) {
+  common_extent <- intersect(common_extent, extent(raster_layer))
 }
 
 # Define a common resolution
@@ -45,13 +91,16 @@ mean_sum_rain <- resample(mean_sum_rain, raster_min_res, method = "bilinear")
 raster_brick <- brick(mean_win_temp, rel_humidity, mean_win_rain, mean_sum_rain)
 
 plot(raster_brick)
-
-#writeRaster(raster_brick, filename="processed_data/raster_brick.grd", overwrite=TRUE)
-#filename = "raw_data/climate/mean_winter_rainfall"
-#data <- readLines(paste0(filename, ".txt")) # http://www.bom.gov.au/climate/maps/averages/temperature/?maptype=mean&period=win&region=aus
-#writeLines(data, paste0(filename, ".asc"))
 ```
-# Toads
+
+And now we can save it processed_data for easy creation later on.
+
+```{r}
+writeRaster(raster_brick, filename="processed_data/raster_brick.grd", overwrite=TRUE)
+```
+
+
+# Create cell dataframe
 
 ```{r}
 toads <- read_csv("raw_data/occurrence/rhinella-marina-occurence.csv")
@@ -250,7 +299,7 @@ ggplot(millenium, aes(x=decimalLongitude, y=decimalLatitude, color=log10(predict
   geom_point(size=1.8) +
   viridis::scale_color_viridis()
 ```
-```
+
 
 
 Varroa mites
