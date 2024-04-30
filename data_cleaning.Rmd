@@ -51,3 +51,76 @@ plot(raster_brick)
 #data <- readLines(paste0(filename, ".txt")) # http://www.bom.gov.au/climate/maps/averages/temperature/?maptype=mean&period=win&region=aus
 #writeLines(data, paste0(filename, ".asc"))
 ```
+# Toads
+
+```{r}
+toads <- read_csv("raw_data/occurrence/rhinella-marina-occurence.csv")
+```
+
+```{r}
+df <- toads |> 
+  dplyr::select(eventDate, year, stateProvince, decimalLatitude, decimalLongitude) |> 
+  arrange(eventDate)
+df <- df[(!is.na(df$decimalLatitude) & !is.na(df$decimalLongitude)),]
+```
+
+```{r create-cells}
+create_cell_df <- function(data, years_to=2024, res=0.5) {
+  empty_raster <- raster(extent(mean_win_temp), res = res)
+  values(empty_raster) <- 0
+  
+  cell_df <- as.data.frame(xyFromCell(empty_raster, 1:ncell(empty_raster)))
+  colnames(cell_df) <- c("decimalLongitude", "decimalLatitude")
+  
+  cell_df$mean_win_temp <- extract(mean_win_temp, cell_df[, c("decimalLongitude", "decimalLatitude")])
+  cell_df$rel_humidity <- extract(rel_humidity, cell_df[, c("decimalLongitude", "decimalLatitude")])
+  cell_df$mean_win_rain <- extract(mean_win_rain, cell_df[, c("decimalLongitude", "decimalLatitude")])
+  cell_df$mean_sum_rain <- extract(mean_sum_rain, cell_df[, c("decimalLongitude", "decimalLatitude")])
+  
+  cell_df <- na.omit(cell_df)
+  rownames(cell_df) <- NULL
+  cell_df$toads <- rep(0, nrow(cell_df))
+  
+  data_upto_date <- subset(df, year <= years_to) # filter won't work if it's a spatial points df
+  
+  for (i in seq_len(nrow(data_upto_date))) {
+    given_lat <- data_upto_date$decimalLatitude[i]
+    given_lon <- data_upto_date$decimalLongitude[i]
+    
+    # Get the cell index of the nearest cell
+    cell_index <- cellFromXY(empty_raster, c(given_lon, given_lat))
+  
+    # Get the latitude and longitude of the nearest cell
+    nearest_lat_lon <- xyFromCell(empty_raster, cell_index)
+    
+    row_index <- which(cell_df$decimalLatitude == nearest_lat_lon[2] & cell_df$decimalLongitude == nearest_lat_lon[1])
+    
+    # Increment the toads count in the corresponding row
+    cell_df[row_index, "toads"] <- cell_df[row_index, "toads"] + 1
+  }
+  
+  cell_df$ribbit <- cell_df$toads > 0
+  
+  return(cell_df)
+}
+```
+
+```{r}
+unique(subset(df, year <= 2000)$year)
+```
+
+```{r}
+cell_df <- create_cell_df(df, years_to=2024, res=0.5)
+head(cell_df)
+```
+
+
+
+```{r}
+ggplot(cell_df, aes(x=decimalLongitude, y=decimalLatitude, color=log10(toads))) +
+  geom_point(size=1.8) +
+  viridis::scale_color_viridis()
+```
+Could remove data from clear outlier observations?
+
+What about data before 2010?
