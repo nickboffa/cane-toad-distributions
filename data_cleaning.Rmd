@@ -102,11 +102,94 @@ australia_raster[!is.na(mean_win_temp)] <- 1
 australia_raster[is.na(mean_win_temp)] <- 0
 ```
 
+# Prepare Data
+
+## Load raw data
+
+Downloaded by ALA, with default settings on (e.g. spatially suspect records were excluded)
 ```{r}
 toads <- read_csv("raw_data/occurrence/rhinella-marina-occurence.csv")
 ```
+Could geo-reference the missing coordinate observations using the 'locality' column
 
 ```{r}
+length(toads[!(!is.na(toads$decimalLatitude) & !is.na(toads$decimalLongitude)),])
+```
+
+
+
+
+## Clean Data
+
+```{r}
+clean <- toads |> 
+  filter(country == "Australia" & !is.na(decimalLatitude) & !is.na(decimalLongitude))
+clean
+```
+
+```{r}
+georef <- subset(clean, (is.na(decimalLongitude) | is.na(decimalLatitude)) & ! is.na(locality) ) |> 
+  dplyr::select(rightsHolder, stateProvince, locality, eventDate)
+georef
+```
+So there are only 73 rows that could be georeferenced. According to https://docs.gbif.org/georeferencing-best-practices/1.0/en/ however, it is better to not georeference at all than georeference poorly. Given this data is so old
+
+```{r}
+cutoff <- function(x) {-0.5*x + 40}
+ggplot(toads, aes(x=decimalLongitude, y=decimalLatitude, color=country)) +
+  geom_point() +
+  stat_function(fun=cutoff, colour='red')
+```
+
+```{r}
+sp_clean <- clean
+coordinates(sp_clean) <- c("decimalLongitude", "decimalLatitude")
+```
+
+Only take values on land
+
+```{r}
+is_land <- extract(australia_raster, sp_clean)
+
+# Filter rows in the spatial data frame based on the raster values
+clean <- clean[which(is_land == 1),]
+```
+
+REMOVED clean[which(is_land != 1),] ROWS
+
+```{r}
+cutoff <- function(x) {-0.5*x + 40}
+ggplot(clean, aes(x=decimalLongitude, y=decimalLatitude)) +
+  geom_point() +
+  stat_function(fun=cutoff, colour='red')
+```
+
+Going to remove observations below the red line:
+
+```{r}
+clean <- clean |> 
+  filter(decimalLatitude - cutoff(decimalLongitude) >= 0) # above red line above
+```
+
+```{r}
+ggplot(clean, aes(x=decimalLongitude, y=decimalLatitude)) +
+  geom_point()
+```
+
+Finally, there are no cane toads in Central Australia
+
+```{r}
+clean <- clean |> 
+  filter(!(decimalLongitude < 135 & decimalLatitude < -22))
+```
+
+```{r}
+ggplot(clean, aes(x=decimalLongitude, y=decimalLatitude)) +
+  geom_point()
+```
+
+I'm happy with this! Would like to automate cleaning a bit further, by determining clusters? I'm sure there's a function online to do it easily.
+
 df <- toads |> 
   dplyr::select(eventDate, year, stateProvince, decimalLatitude, decimalLongitude) |> 
   arrange(eventDate)
@@ -125,7 +208,7 @@ create_cell_df <- function(data, years_to=2024, res=0.5) {
   cell_df$rel_humidity <- extract(rel_humidity, cell_df[, c("decimalLongitude", "decimalLatitude")])
   cell_df$mean_win_rain <- extract(mean_win_rain, cell_df[, c("decimalLongitude", "decimalLatitude")])
   cell_df$mean_sum_rain <- extract(mean_sum_rain, cell_df[, c("decimalLongitude", "decimalLatitude")])
-  
+
   cell_df <- na.omit(cell_df)
   rownames(cell_df) <- NULL
   cell_df$toads <- rep(0, nrow(cell_df))
