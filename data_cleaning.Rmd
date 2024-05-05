@@ -17,7 +17,6 @@ library(knitr)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 # Create Raster Brick
-
 ## Download .txt files
 
 To obtain original .txt data, from the web:
@@ -42,65 +41,66 @@ kable(table, format = "html", escape = FALSE)
 ```
 
 
-## Convert .txt raster data to .asc
-
-To load the raster .txt files as raster layers easily, we need to convert them to .asc.
-```{r}
-filenames <- c("raw_data/climate/mean_winter_temp",
-              "raw_data/climate/rel_humidity_9am",
-              "raw_data/climate/mean_winter_rainfall",
-              "raw_data/climate/mean_summer_rainfall")
-
-for (filename in filenames) {
-  data <- readLines(paste0(filename, ".txt")) 
-  writeLines(data, paste0(filename, ".asc"))
-}
-```
-
-## Load raster layers and make brick
+## Load raster layers and make stack
 ```{r create-raster-brick}
-mean_win_temp <- raster("raw_data/climate/mean_winter_temp.asc")
-rel_humidity <- raster("raw_data/climate/rel_humidity_9am.asc")
-mean_win_rain <- raster("raw_data/climate/mean_winter_rainfall.asc")
-mean_sum_rain <- raster("raw_data/climate/mean_summer_rainfall.asc")
+mean_win_temp <- raster("raw_data/climate/mean_winter_temp.txt")
+rel_humidity <- raster("raw_data/climate/rel_humidity_9am.txt")
+mean_win_rain <- raster("raw_data/climate/mean_winter_rainfall.txt")
+mean_sum_rain <- raster("raw_data/climate/mean_summer_rainfall.txt")
 
 rasters <- list(mean_win_temp, rel_humidity, mean_win_rain, mean_sum_rain)
 
-# Define a common extent
-common_extent <- extent(mean_win_temp)
-
-for (raster_layer in rasters) {
-  common_extent <- intersect(common_extent, extent(raster_layer))
-}
-
-# Define a common resolution
-common_res <- min(res(mean_win_temp), res(rel_humidity), 
+# Find max resolution raster
+max_res <- max(res(mean_win_temp), res(rel_humidity), 
                   res(mean_win_rain), res(mean_sum_rain))
 
-min_res_index <- which.min(c(res(mean_win_temp), res(rel_humidity), res(mean_win_rain), res(mean_sum_rain)))
+max_res_index <- which.max(c(res(mean_win_temp), res(rel_humidity), res(mean_win_rain), res(mean_sum_rain)))
 
-raster_min_res <- rasters[[min_res_index]]
+max_res_raster <- rasters[[max_res_index]]
 
-# Resample rasters to the common extent and resolution
-mean_win_temp <- resample(mean_win_temp, raster_min_res, method = "bilinear")
-rel_humidity <- resample(rel_humidity, raster_min_res, method = "bilinear")
-mean_win_rain <- resample(mean_win_rain, raster_min_res, method = "bilinear")
-mean_sum_rain <- resample(mean_sum_rain, raster_min_res, method = "bilinear")
+# Resample rasters to the extent and resolution of raster with max res
+mean_win_temp <- resample(mean_win_temp, max_res_raster, method = "bilinear")
+rel_humidity <- resample(rel_humidity, max_res_raster, method = "bilinear")
+mean_win_rain <- resample(mean_win_rain, max_res_raster, method = "bilinear")
+mean_sum_rain <- resample(mean_sum_rain, max_res_raster, method = "bilinear")
+
+# Give themm all australia shape, using the fact that mean_win_temp is shaped like Australia
+
+rel_humidity[is.na(mean_win_temp)] <- NA
+mean_win_rain[is.na(mean_win_temp)] <- NA
+mean_sum_rain[is.na(mean_win_temp)] <- NA
 
 # Create a raster brick
-raster_brick <- brick(mean_win_temp, rel_humidity, mean_win_rain, mean_sum_rain)
+climate_stack <- stack(mean_win_temp, rel_humidity, mean_win_rain, mean_sum_rain)
+names(climate_stack) <- c("mean_win_temp", "rel_humidity", "mean_win_rain", "mean_sum_rain")
 
-plot(raster_brick)
+# set resolution
+desired_res <- 0.4
+fact <- desired_res/res(climate_stack)
+climate_stack <- aggregate(climate_stack, fact=fact)
+
+plot(climate_stack)
+
+
+writeRaster(climate_stack, filename="processed_data/climate_stack.grd", overwrite=TRUE)
+rm(list = c("mean_sum_rain", "mean_win_rain", "rel_humidity", "max_res_raster", "rasters")) # need mean_win_
 ```
+
+Might be able to use model in:
+raster::predict(climate_stack, model, type='response')
 
 And now we can save it processed_data for easy creation later on.
-
+## Create australia raster for cleaning
 ```{r}
-writeRaster(raster_brick, filename="processed_data/raster_brick.grd", overwrite=TRUE)
+australia_raster <- raster(extent(mean_win_temp), res = res(mean_win_temp))
+
+# Set values to 1 where "mean_win_temp" is not NA, and 0 otherwise
+australia_raster[] <- NA
+
+# Set values to 1 where "mean_win_temp" is not NA, and 0 otherwise
+australia_raster[!is.na(mean_win_temp)] <- 1
+australia_raster[is.na(mean_win_temp)] <- 0
 ```
-
-
-# Create cell dataframe
 
 ```{r}
 toads <- read_csv("raw_data/occurrence/rhinella-marina-occurence.csv")
