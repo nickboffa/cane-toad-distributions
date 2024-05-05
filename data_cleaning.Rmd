@@ -190,9 +190,77 @@ ggplot(clean, aes(x=decimalLongitude, y=decimalLatitude)) +
 
 I'm happy with this! Would like to automate cleaning a bit further, by determining clusters? I'm sure there's a function online to do it easily.
 
-df <- toads |> 
-  dplyr::select(eventDate, year, stateProvince, decimalLatitude, decimalLongitude) |> 
+## Create main df
+
+Now create main dataframe
+```{r}
+df <- clean |> 
+  dplyr::select(eventDate, year, stateProvince, locality, decimalLongitude, decimalLatitude,) |> 
   arrange(eventDate)
+df <- df |> 
+  rename(longitude = decimalLongitude,
+         latitude = decimalLatitude)
+
+df <- df[(!is.na(df$latitude) & !is.na(df$longitude)),]
+sp_df <- df
+coordinates(sp_df) <- c("longitude", "latitude")
+
+head(sp_df)
+```
+
+
+```{r}
+counts <- rasterize(sp_df, climate_stack, fun = "count", background=0) # cells without observation get a 0
+toad_counts <- counts[["ID"]] # 1 per individual row
+toad_count_df <- as.data.frame(toad_counts, xy = TRUE)
+plot(toad_counts)
+```
+
+
+## EDA of df
+
+
+There is no absence data:
+```{r}
+unique(toads$occurrenceStatus)
+```
+
+1900 records are likely wrong (1900-01-01?), In fact, an odd number of records occur on the first day of the month.
+
+```{r}
+head(df)
+```
+
+```{r}
+ggplot(df, aes(x=yday(eventDate))) +
+  geom_histogram()
+```
+
+```{r}
+library(skimr)
+library(GGally)
+```
+```{r}
+skim(df)
+```
+```{r, warning=F, message=F}
+df |> 
+  dplyr::select(-locality) |> 
+  ggpairs()
+```
+```{r}
+ggplot(df, aes(x=longitude, y=latitude)) +
+  geom_point()
+```
+
+
+
+```{r}
+toads |> 
+  arrange(eventDate) |> 
+  head()
+```
+
 df <- df[(!is.na(df$decimalLatitude) & !is.na(df$decimalLongitude)),]
 ```
 
