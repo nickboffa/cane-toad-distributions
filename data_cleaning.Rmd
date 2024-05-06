@@ -261,56 +261,36 @@ toads |>
   head()
 ```
 
-df <- df[(!is.na(df$decimalLatitude) & !is.na(df$decimalLongitude)),]
+# Create cell_df
+
+```{r}
+unique(subset(sp_df, year < 2000)$year)
 ```
 
-```{r create-cells}
-create_cell_df <- function(data, years_to=2024, res=0.5) {
-  empty_raster <- raster(extent(mean_win_temp), res = res)
-  values(empty_raster) <- 0
-  
-  cell_df <- as.data.frame(xyFromCell(empty_raster, 1:ncell(empty_raster)))
-  colnames(cell_df) <- c("decimalLongitude", "decimalLatitude")
-  
-  cell_df$mean_win_temp <- extract(mean_win_temp, cell_df[, c("decimalLongitude", "decimalLatitude")])
-  cell_df$rel_humidity <- extract(rel_humidity, cell_df[, c("decimalLongitude", "decimalLatitude")])
-  cell_df$mean_win_rain <- extract(mean_win_rain, cell_df[, c("decimalLongitude", "decimalLatitude")])
-  cell_df$mean_sum_rain <- extract(mean_sum_rain, cell_df[, c("decimalLongitude", "decimalLatitude")])
-
+```{r}
+create_cell_df <- function(data, years_up_to=2024, res=0.5) {
+  data <- subset(data, year < years_up_to)
+  toad_counts <- rasterize(data, climate_stack, fun = "count", background=0)[["ID"]] # 1 per individual row? (Check later), backgroun = 0 means cells with nothing get 0
+  toad_count_df <- as.data.frame(toad_counts, xy = TRUE)
+  cell_df <- cbind(toad_count_df, as.data.frame(extract(climate_stack, toad_count_df[,1:2], method='bilinear'))) # adds lats and longs
   cell_df <- na.omit(cell_df)
   rownames(cell_df) <- NULL
-  cell_df$toads <- rep(0, nrow(cell_df))
   
-  data_upto_date <- subset(df, year <= years_to) # filter won't work if it's a spatial points df
+  cell_df <- cell_df |> 
+    rename(longitude = "x",
+           latitude = "y",
+           n_toads = "ID")
   
-  for (i in seq_len(nrow(data_upto_date))) {
-    given_lat <- data_upto_date$decimalLatitude[i]
-    given_lon <- data_upto_date$decimalLongitude[i]
-    
-    # Get the cell index of the nearest cell
-    cell_index <- cellFromXY(empty_raster, c(given_lon, given_lat))
-  
-    # Get the latitude and longitude of the nearest cell
-    nearest_lat_lon <- xyFromCell(empty_raster, cell_index)
-    
-    row_index <- which(cell_df$decimalLatitude == nearest_lat_lon[2] & cell_df$decimalLongitude == nearest_lat_lon[1])
-    
-    # Increment the toads count in the corresponding row
-    cell_df[row_index, "toads"] <- cell_df[row_index, "toads"] + 1
-  }
-  
-  cell_df$ribbit <- cell_df$toads > 0
+  cell_df$ribbit <- cell_df$n_toads > 0
   
   return(cell_df)
 }
 ```
 
-```{r}
-unique(subset(df, year <= 2000)$year)
-```
+
 
 ```{r}
-cell_df <- create_cell_df(df, years_to=2024, res=0.5)
+cell_df <- create_cell_df(sp_df, years_up_to=2024, res=0.5)
 head(cell_df)
 ```
 
