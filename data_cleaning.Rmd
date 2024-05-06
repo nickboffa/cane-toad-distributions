@@ -11,6 +11,7 @@ output: html_document
 library(tidyverse)
 library(raster)
 library(knitr)
+library(randomForest)
 ```
 
 ```{r setup, include=FALSE}
@@ -296,68 +297,80 @@ head(cell_df)
 
 
 
-```{r}
-ggplot(cell_df, aes(x=decimalLongitude, y=decimalLatitude, color=log10(toads))) +
-  geom_point(size=1.8) +
-  viridis::scale_color_viridis()
-```
 Could remove data from clear outlier observations?
 
 What about data before 2010?
 
-
-
-
-# Machine Learning
+## Actual toad counts data
 
 ```{r}
-library(randomForest)
-library(caTools)
+ggplot(cell_df, aes(x=longitude, y=latitude, color=log10(n_toads))) +
+  geom_point(size=1.2) +
+  viridis::scale_color_viridis()
+```
+
+```{r}
+toad_counts <- rasterize(sp_df, climate_stack, fun = "count", background=0)[["ID"]] # 1 per individual row? (Check later), backgroun = 0 means cells with nothing get 0
+plot(log10(toad_counts))
 ```
 
 
-```{r}
-run_model <- function(data) {
-  set.seed(12345)
-
-  split <- sample.split(data, SplitRatio = 0.7) 
-    
-  train <- subset(data, split == "TRUE") 
-  test <- subset(data, split == "FALSE") 
-  
-  model <- randomForest(toads ~ mean_win_rain + mean_win_temp + mean_sum_rain + rel_humidity, data = train)
-  
-  return(model)
-}
-```
+# Machine learning
 
 
-```{r}
+```{r split-data}
 set.seed(12345)
+n <- nrow(cell_df)
+n_trains <- floor(0.7 * n)
+train_idxs <- sample(1:n, n_trains)  # Sample 70% of rows for training
+test_idxs <- setdiff(1:n, train_idxs)  # Use the remaining rows for testing
 
-split <- sample.split(cell_df, SplitRatio = 0.7) 
-  
-train <- subset(cell_df, split == "TRUE") 
-test <- subset(cell_df, split == "FALSE") 
+# Create training and testing dataframes
+train <- cell_df[train_idxs, ]
+test <- cell_df[test_idxs, ]
+```
+
+## Regression
+
+```{r}
+create_model <- function(data) {randomForest(n_toads ~ mean_win_temp + rel_humidity + mean_win_rain + mean_sum_rain, data=data)}
 ```
 
 ```{r}
-# Define the models
-model <- randomForest(toads ~ mean_win_rain + mean_win_temp + mean_sum_rain + rel_humidity, data = train)
-model2 <- randomForest(ribbit ~ mean_win_rain + mean_win_temp + mean_sum_rain + rel_humidity, data = train)
+rf_model1 <- randomForest(n_toads ~ mean_win_temp + rel_humidity + mean_win_rain + mean_sum_rain, data=train)
+
+predictions1 <- predict(climate_stack, model = rf_model1)
+
+# Visualize predictions
+plot(log10(predictions1))
+```
+
+
+## Binary
+
+```{r}
+rf_model2 <- randomForest(as.factor(!ribbit) ~ mean_win_rain + mean_win_temp + mean_sum_rain + rel_humidity, data = train) # makes it binary. For some reason need the !?
+
+# Might be to do with predicted2[,"TRUE"]
+
+predictions2 <- predict(climate_stack, model = rf_model2, type='prob')
+
+# Visualize predictions
+plot(predictions2)
 ```
 
 ```{r}
-test$model_toads <- predict(model, test)
-test$model2_toads <- predict(model2, test)
+rf_model3 <- randomForest(n_toads ~ mean_win_temp + rel_humidity + mean_win_rain + mean_sum_rain, 
+                          data=train, classwt = )
+
+predictions3 <- predict(climate_stack, model = rf_model3)
+
+# Visualize predictions
+plot(log10(predictions3))
 ```
+predictions
 
-```{r}
-cell_df$predicted <- predict(model, cell_df)
-cell_df$predicted2 <- predict(model2, cell_df)
-```
-
-
+# Model evaluation
 
 ```{r}
 confusion_mtx = table(test$toads,test$model_toads) 
@@ -365,56 +378,60 @@ confusion_mtx = table(test$toads,test$model_toads)
 
 ```{r}
 # Plotting model 
-plot(model2) 
+plot(rf_model2) 
   
 # Importance plot 
-importance(model2) 
+importance(rf_model2) 
   
 # Variable importance plot 
-varImpPlot(model2) 
+varImpPlot(rf_model2) 
+```
+
+```{r}
+# Plotting model 
+plot(rf_model1) 
+  
+# Importance plot 
+importance(rf_model1) 
+  
+# Variable importance plot 
+varImpPlot(rf_model1) 
 ```
 
 Model 2 is way better?
 
 ```{r}
-hist(log10(cell_df$predicted))
+hist(log10(predictions1))
 ```
-
-
-```{r}
-ggplot(train, aes(x=decimalLongitude, y=decimalLatitude, color=toads)) +
-  geom_point()
-```
-
-```{r}
-cell_df |> 
-  ggplot(aes(x=decimalLongitude, y=decimalLatitude, colour=log10(predicted))) +
-    geom_point() +
-    geom_point(data=cell_df |> filter(predicted < 0.5), colour='grey') +
-    viridis::scale_color_viridis()
-```
-
-```{r}
-millenium |> 
-  ggplot(aes(x=decimalLongitude, y=decimalLatitude, colour=log10(predicted))) +
-    geom_point() +
-    geom_point(data=millenium |> filter(predicted < 0.2), colour='grey') +
-    viridis::scale_color_viridis()
-```
-
-
-```{r}
-test |> 
-  ggplot(aes(x=decimalLongitude, y=decimalLatitude, colour=model2_toads)) +
-    geom_point() +
-    #geom_point(data=cell_df |> filter(predicted2 < 0.5), colour='grey') +
-    viridis::scale_color_viridis()
-```
-
-
 
 
 # Future Predicting 
+
+```{r}
+millenium <- create_cell_df(sp_df, years_up_to=2000, res=0.4)
+head(millenium)
+```
+```{r}
+sum(millenium$n_toads) < sum(cell_df$n_toads)
+```
+
+```{r}
+mill_model <- create_model(millenium)
+
+predictions_m <- predict(climate_stack, mill_model)
+```
+
+```{r}
+plot(log10(predictions1))
+```
+```{r}
+res(australia_raster)
+```
+
+
+```{r}
+plot(log10(predictions_m))
+```
 
 ```{r}
 millenium <- create_cell_df(df, years_to=2000, res=0.5)
