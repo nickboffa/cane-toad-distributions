@@ -12,6 +12,8 @@ library(tidyverse)
 library(raster)
 library(knitr)
 library(randomForest)
+library(rasterVis)
+library(animation)
 ```
 
 ```{r setup, include=FALSE}
@@ -619,3 +621,96 @@ remove_excess <- function(toads_list) {
   return(filtered_toads)
 }
 ```
+
+## animate
+
+
+  if (length(alive_toads) > 200) {
+    alive_toads <- sample(alive_toads, 100) # instead could just remove toads from cells that have heaps already?
+  }
+
+
+  plot(trackers[[time_step]], main = paste("Time Step:", time_step))
+
+
+```{r}
+tracker_brick <- brick(trackers)
+
+# Create a function to generate plots for each time step
+plot_toads <- function(time_step) {
+  tracker_df <- as.data.frame(trackers[[time_step]], xy = TRUE)
+  names(tracker_df)[3] <- 'value' 
+  tracker_df <- na.omit(tracker_df)
+  tracker_df$value <- fct_rev(as.factor(tracker_df$value))
+  
+  p <- ggplot(tracker_df, aes(x,y)) +
+    geom_raster(aes(fill = value)) +
+    coord_fixed() +
+    viridis::scale_fill_viridis(discrete=TRUE, option='plasma') +
+    theme_void() +
+    labs(main = paste("Time Step:", time_step))
+  print(p)
+}
+
+# Create an animation
+ani <- saveGIF({
+  for (i in 1:nlayers(tracker_brick)) {
+    plot_toads(i)
+    Sys.sleep(0.2)  # Adjust the sleep time as needed
+  }
+}, interval = 0.2, fps=10)
+
+# View the animation
+ani
+```
+
+
+```{r}
+plot
+```
+```{r}
+aus_outline
+```
+
+
+```{r}
+unique(aus_outline$group)
+```
+
+```{r}
+australia_df
+```
+
+```{r}
+australia_df <- as.data.frame(rasterToPoints(australia_raster), xy = TRUE)
+names(australia_df) <- c("x", "y", "is_land")
+
+# Plot using ggplot
+ggplot() +
+  geom_raster(data=australia_df, aes(x = x, y = y, fill = factor(is_land))) +
+  geom_raster(data=plot, mapping=aes(x=x, y=y, fill = value)) +
+  theme_void()
+```
+
+```{r}
+plot <- as.data.frame(trackers[[7]], xy = TRUE)
+names(plot)[3] <- 'value' 
+plot <- na.omit(plot)
+plot$value <- fct_rev(as.factor(plot$value))
+
+aus_outline <- fortify(rasterToPolygons(australia_raster, dissolve=TRUE))
+
+ggplot() +
+  coord_fixed() +
+  geom_polygon(mapping=aes(x = long, y = lat, group = group), data = aus_outline, fill='grey') +
+  viridis::scale_fill_viridis(discrete=TRUE, option='mako', direction=-1) +
+  geom_raster(plot, mapping = aes(x, y, fill = value)) 
+  theme_void()
+```
+  geom_path(aes(x = long, y = lat, group = group), data = aus_outline, 
+              size=1.5, col="black") +
+              
+```{r}
+rasterToPolygons(australia_raster, dissolve=TRUE)
+```
+
