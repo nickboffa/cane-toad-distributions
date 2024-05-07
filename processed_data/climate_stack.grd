@@ -1,26 +1,26 @@
 [general]
 creator=R package 'raster'
-created=2024-04-30 09:56:21
+created=2024-05-04 10:15:50
 [data]
 datatype=FLT4S
 byteorder=little
 nbands=4
 bandorder=BIL
-minvalue=-1.03912547147907:36.2529983520508:0:0
-maxvalue=25.9616673787435:91.379997253418:979.309997558564:1663.0400390625
+minvalue=1.10309896721445:36.3236446380615:1.92984374985099:16.0946666717529
+maxvalue=25.7550001144409:84.4473277926445:802.482968330383:1512.75942095588
 nodatavalue=-3.4e+38
 [legend]
 legendtype=
 values=
 color=
 [description]
-layername=mean_winter_temp:rel_humidity_9am:mean_winter_rainfall:mean_summer_rainfall
+layername=mean_win_temp:rel_humidity:mean_win_rain:mean_sum_rain
 [georeference]
-nrows=361
-ncols=501
-xmin=109.95
-ymin=-45.05
-xmax=160.05
-ymax=-8.95
+nrows=87
+ncols=111
+xmin=111.975
+ymin=-44.775
+xmax=156.375
+ymax=-9.97499999999999
 projection=+proj=longlat +datum=WGS84 +no_defs
 wkt=GEOGCRS["unknown",    DATUM["World Geodetic System 1984",        ELLIPSOID["WGS 84",6378137,298.257223563,            LENGTHUNIT["metre",1]],        ID["EPSG",6326]],    PRIMEM["Greenwich",0,        ANGLEUNIT["degree",0.0174532925199433],        ID["EPSG",8901]],    CS[ellipsoidal,2],        AXIS["longitude",east,            ORDER[1],            ANGLEUNIT["degree",0.0174532925199433,                ID["EPSG",9122]]],        AXIS["latitude",north,            ORDER[2],            ANGLEUNIT["degree",0.0174532925199433,                ID["EPSG",9122]]]]
