@@ -433,6 +433,48 @@ res(australia_raster)
 plot(log10(predictions_m))
 ```
 
+# Time
+
+1. Create rasterbrick over time
+
+```{r}
+lat_mask <- mean_win_temp
+lat_mask <- init(lat_mask, "y") < -39.3  # Creates a logical mask for latitudes less than -40
+
+# Apply the mask to the raster
+mainland <- mask(mean_win_temp, lat_mask, maskvalue=1)
+mainland_agg <- aggregate(mainland, fact=40)
+plot(mainland_agg)
+
+australia_raster <- raster(extent(mainland_agg), res = res(mainland_agg))
+
+# Set values to 1 where "mean_win_temp" is not NA, and 0 otherwise
+australia_raster[] <- NA
+
+# Set values to 1 where "mean_win_temp" is not NA, and 0 otherwise
+australia_raster[!is.na(mainland_agg)] <- 1
+australia_raster[is.na(mainland_agg)] <- 0
+
+rm(list = c("mainland", "mainland_agg", "lat_mask")) #"mean_win_temp",
+plot(australia_raster)
+```
+
+
+```{r}
+predictions2_agg <- resample(predictions2, australia_raster)
+predictions1_agg <- resample(predictions1, australia_raster)
+
+logged <- log10(predictions1)
+input <- sqrt(predictions2_agg)
+
+normalised <- (input - minValue(input))/(maxValue(input) - minValue(input))
+normalised[which(is.na(normalised[]))] <- 0
+
+affinities <- (2*normalised - 1) # -1 to 1
+plot(affinities)
+```
+```
+
 ```{r}
 millenium <- create_cell_df(df, years_to=2000, res=0.5)
 head(millenium)
