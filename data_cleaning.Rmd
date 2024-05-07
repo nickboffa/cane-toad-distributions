@@ -473,31 +473,149 @@ normalised[which(is.na(normalised[]))] <- 0
 affinities <- (2*normalised - 1) # -1 to 1
 plot(affinities)
 ```
+
+# Use OOP
+
+```{r}
+library(R6)
 ```
 
 ```{r}
-millenium <- create_cell_df(df, years_to=2000, res=0.5)
-head(millenium)
+Toad <- R6Class("toad",
+  public = list(
+    pos=NULL,
+    energy=NULL,
+    id=NULL,
+    # Constructor method
+    initialize = function(pos, energy, id) {
+      self$pos <- pos
+      self$energy <- energy
+      self$id <- id
+    },
+    move = function() {
+      # Determine where it can move to that's on land
+      indices <- adjacent(australia_raster, cell = self$pos, directions = 8, pairs=TRUE)[,2]
+      neighboring_cells <- australia_raster[indices]
+      names(neighboring_cells) <- indices
+      move_options <- as.numeric(names(neighboring_cells[which(neighboring_cells == 1)])) # list of cells that are still on land
+      
+      # Pick destination and move it there
+      destination <- sample(move_options, 1) # prob doesn't need to sum to 1 btw
+      self$pos <- destination
+    },
+    update_energy = function() {
+      self$energy <- self$energy + max_abs_delta_energy*affinities[self$pos]
+      if (self$energy > 1) {self$energy <- 1}
+      if (self$energy < 0) {self$energy <- 0}
+    },
+    die = function() {
+        remove_toad <- function(any_toad) {
+          any_toad$id != self$id
+        }
+        # Remove the toad with the specified id
+        alive_toads <- Filter(remove_toad, alive_toads)
+    }
+  )
+)
+```
+
+      n_toads_destination <- table(sapply(alive_toads, function(t) t$pos == destination))['TRUE'] # could be na
+      if (is.na(n_toads_destination) | n_toads_destination > 10) {
+        self$die
+      }
+      else {
+        self$pos <- destination
+      }
 
 
 
-mill_model <- run_model(millenium)
+```{r}
+update_tracker <- function(tracker, toad_list) {
+  tracker[] <- 0
+  tracker[australia_raster == 0] <- NA
+  for (toad in toad_list) {
+    tracker[toad$pos] <- tracker[toad$pos] + 1
+  }
+  return(tracker)
+}
+```
 
-millenium$predicted <- predict(mill_model, millenium)
+```{r}
+start <- cellFromXY(australia_raster, c(145.7844, -17.09833)) # actual start of cane toad invasion
+start
+```
 
-ggplot(millenium, aes(x=decimalLongitude, y=decimalLatitude, color=log10(predicted))) +
-  geom_point(size=1.8) +
-  viridis::scale_color_viridis()
+```{r}
+max_abs_delta_energy <- 0.5
+init_energy <- 0.9
+repr_limit <- 0.5
+die_limit <- 0.2
+steps_per_day <- 3
+
+n_ticks <- 30
+# setup
+trackers <- vector("list", length = n_ticks - 1)
+tracker <- raster(extent(australia_raster), res = res(australia_raster))
+tracker[] <- 0
+
+alive_toads <- c(Toad$new(pos = start, energy = init_energy, id=1))
+last_id <- 1
+
+for (tick in 1:n_ticks) {
+  for (toad in alive_toads) { # what happens when alive_toads is updated during?
+    for (m in 1:steps_per_day) {toad$move()}
+    toad$update_energy() 
+    if (toad$energy > repr_limit) { # reproduce
+      new_id <- last_id + 1
+      last_id <- new_id
+      alive_toads <- c(alive_toads, Toad$new(pos = toad$pos, energy = init_energy, id=new_id))
+    }
+    if (toad$energy < die_limit) { # die
+      remove_toad <- function(any_toad) {
+          any_toad$id != toad$id
+        }
+        # Remove the toad with the specified id
+        alive_toads <- Filter(remove_toad, alive_toads)
+    }
+  }
+  
+  print(length(alive_toads))
+  alive_toads <- remove_excess(alive_toads)
+  print(length(alive_toads))
+  
+  tracker <- update_tracker(tracker, alive_toads)
+  trackers[[tick]] <- tracker
+  
+  print(paste(tick, length(alive_toads)))
+  
+  if (length(alive_toads) == 0) {
+    break
+  }
+  
+}
+
+plotting <- trackers[[tick]] + 0.0005*length(alive_toads)*australia_raster
+plot(plotting)
 ```
 
 
-
-Varroa mites
-Fire ants
-Proximate Bayesian Modelling
-Use already-made shapefiles of cane toad distributions
-
-Amniote life history database
-
-
-http://www.bom.gov.au/climate/maps/averages/rainfall/
+```{r}
+remove_excess <- function(toads_list) {
+  # Count the occurrences of each 'pos' in the list
+  pos_counts <- table(sapply(toads_list, function(t) t$pos))
+  
+  # Initialize a list to store filtered toads
+  filtered_toads <- list()
+  
+  # Loop through each unique 'pos'
+  for (pos in names(pos_counts)) {
+    # Get the first 10 toads for the current 'pos'
+    toads_for_pos <- toads_list[sapply(toads_list, function(t) t$pos == pos)][1:min(7, pos_counts[pos])]
+    
+    # Add the filtered toads to the list
+    filtered_toads <- c(filtered_toads, toads_for_pos)
+  }
+  
+  return(filtered_toads)
+}
+```
