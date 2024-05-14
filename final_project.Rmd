@@ -27,59 +27,25 @@ https://github.com/nickboffa/DS4B-final-report
 
 [A brief (~100-200 words should be more than enough) description of the dataset, referencing any key publications that go with it]
 
-# Questions/Aims (Ramblings)
+# Questions/Aims
+
+Question: Correlative and mechanistic models disagree on the fundamental niche of cane toads in Australia (particularly in the south). Wh
+
+Aim: To use environmental data, together with layers from mechanistic models, to try to replicate (and thus predict into the future) the colonisation of Australia by cane toads.
 
 [A brief section which first states and then justifies the questions/aims of your EDA. Must provide evidence of independent research into what has been done before on these questions/aims. See above for examples.]
 
-Aim: To create a shiny app that, given a species, can show it's distribution over time in Australia (as well as predict its future distribution given climate change)
+Copying from GitHub:
+So in this paper (https://nsojournals.onlinelibrary.wiley.com/doi/10.1111/j.0906-7590.2008.05457.x), they mention near the end
 
-Justification: Especially for invasive species, need to predict where they might go in order to take preventative measures.
+"One way to reduce such extrapolation would be to use a mechanistic approach to define areas in which the species cannot persist (as we have done here). Once these areas are defined, pseudo-absence points could be generated within them and these pseudo-absence points could then inform a correlative model. In addition, output layers of mechanistic models could be used as input layers for correlative models. Such mechanistically-derived layers are composites of multiple environmental conditions transformed through the traits of the organism into one composite variable that directly reflects fitness impacts, providing highly proximal variables for modelling (sensu Austin 2002). Thus, mechanistic approaches can be used in synergy with correlative approaches. Such synergies would potentially extract distribution information from both the basic physiology of the organism as well as its current known range, and would be a valuable avenue for further research."
 
-Relevant articles:
+So, I decided the best way to inform everything by the primary literature is to try combine mechanistic models with the correlative approach I was using (which has been done by quite a few people in many different ways, e.g. https://royalsocietypublishing.org/doi/10.1098/rspb.2007.0114).
 
-Modelling species presence-only data with random forests (2021)
-https://nsojournals.onlinelibrary.wiley.com/doi/full/10.1111/ecog.05615
-- Using binary data ("is toad here?" instead of "how many toads are here") for RFs apparently worse
-- In the lingo of the article, what I'm doing is using background data?? (not "pseudoabsence" data), I'm confused by second paragraph of intro. Possible explanation here https://rspatial.org/raster/sdm/3_sdm_absence-background.html
+The problem was (and still is), that the output layers to their mechanistic models are not accessible. That said, their figures are (https://www.ecography.org/sites/ecography.org/files/appendix/e5457.pdf), so I tried to read the data from the figure myself, and was fairly(?) successful. This meant I had a layer for how good each area is for cane toad breeding. I've been fiddling with exactly how to incorporate this data into the model, but at the very least this is using the primary literature.
 
+Though these articles are old, I haven't found any since that incorporated these suggestions. Cane toad modelling shifted to other aims, other than just 'where will the toads end up'
 
-The cane toad's (Chaunus [Bufo] marinus) increasing ability to invade Australia is revealed by a dynamically updated range model (2007)
-https://www.researchgate.net/publication/6418721_The_cane_toad's_Chaunus_Bufo_marinus_increasing_ability_to_invade_Australia_is_revealed_by_a_dynamically_updated_range_model
-
-## How to do Aim (not alternative aim)
-
-1. Divide mainland Australia into cells (done)
-
-2.  Get following statistics for each cell:
-  - Soil composition x
-  - Köppen climate classification (biome?) x
-  - Major highways/something that takes roads into consideration - if possible, best would be number of cars/day or something (excluding major cities) x
-  - Human population density x
-  - List of other species in that cell? Therefore if two species always come together, model could predict it x
-  - Rainfall ✓
-  - Altitude x
-  - Temperature ✓
-  - (also got relative humidity for lols)
-  
-3. Pick a species (let's say cane toads, Rhinella marina)
-  - Use ALA data, together with machine learning
-
-Take all species in ALA:
-  1. Remove any species with <1000 observations
-  2. Isolate training data (only given the statistics in step 2, and the count of the number of given species occurrences there)
-  3. Run random forest
-  4. Assign affinity of species for cell using results (range of 0-1)
-  5. Create raster brick for these affinities, each layer is a year (increasing temperature using rnorm() for each year in accordance with global warming,
-  or using BOM data on it if can find)
-  6. Create and run agent based model to see how cane toad distributions might look x years into the future
-  7. Validate method by using data up to the year x (where $x \approx 2000$? and trying to predict distribution in 2024.
-  
-
-
-
-Also for introduced species, potentially the area where it was introduced could affect species distribution?
-
-Some kind of algorithm for determining similarity between species from 0 to 1 (using taxonomic classification)
 
 
 # Load Processed Data 
@@ -301,6 +267,9 @@ plot(australia_raster)
 ```
 
 
+```{r}
+plot(logged)
+```
 
 ```{r}
 predictions2_agg <- resample(predictions2, australia_raster)
@@ -586,9 +555,7 @@ rasterToPolygons(australia_raster, dissolve=TRUE)
 [Tidies up your raw data, outputs tidied_data.csv]
 [Cleans up your tidied data, outputs cleaned_data.csv]
 
-```{r}
-raster_brick <- brick("processed_data/raster_brick.grd") # automatically includes .gri file as well
-```
+
 
 # Sanity checks
 
