@@ -161,7 +161,6 @@ table <- data.frame(
 kable(table, format = "html", escape = FALSE)
 ```
 
-
 ## Load raster layers and make stack
 ```{r create-raster-brick}
 mean_win_temp <- raster("raw_data/climate/mean_winter_temp.txt")
@@ -169,31 +168,34 @@ rel_humidity <- raster("raw_data/climate/rel_humidity_9am.txt")
 mean_win_rain <- raster("raw_data/climate/mean_winter_rainfall.txt")
 mean_sum_rain <- raster("raw_data/climate/mean_summer_rainfall.txt")
 
-rasters <- list(mean_win_temp, rel_humidity, mean_win_rain, mean_sum_rain)
+rasters <- list(mean_win_temp, rel_humidity, mean_win_rain, mean_sum_rain, swapped)
 
 # Find max resolution raster
 max_res <- max(res(mean_win_temp), res(rel_humidity), 
-                  res(mean_win_rain), res(mean_sum_rain))
+                  res(mean_win_rain), res(mean_sum_rain), res(swapped))
 
-max_res_index <- which.max(c(res(mean_win_temp), res(rel_humidity), res(mean_win_rain), res(mean_sum_rain)))
+max_res_index <- which.max(c(res(mean_win_temp), res(rel_humidity), res(mean_win_rain), res(mean_sum_rain), res(swapped)))
 
-max_res_raster <- rasters[[max_res_index]]
+max_res_raster <- rasters[[floor(max_res_index/2)]]
 
 # Resample rasters to the extent and resolution of raster with max res
 mean_win_temp <- resample(mean_win_temp, max_res_raster, method = "bilinear")
 rel_humidity <- resample(rel_humidity, max_res_raster, method = "bilinear")
 mean_win_rain <- resample(mean_win_rain, max_res_raster, method = "bilinear")
 mean_sum_rain <- resample(mean_sum_rain, max_res_raster, method = "bilinear")
+swapped <- resample(swapped, max_res_raster, method = "bilinear")
 
 # Give themm all australia shape, using the fact that mean_win_temp is shaped like Australia
 
 rel_humidity[is.na(mean_win_temp)] <- NA
 mean_win_rain[is.na(mean_win_temp)] <- NA
 mean_sum_rain[is.na(mean_win_temp)] <- NA
+swapped[is.na(mean_win_temp)] <- NA
+swapped[is.na(swapped) & !is.na(mean_win_temp)] <- 0
 
 # Create a raster brick
-climate_stack <- stack(mean_win_temp, rel_humidity, mean_win_rain, mean_sum_rain)
-names(climate_stack) <- c("mean_win_temp", "rel_humidity", "mean_win_rain", "mean_sum_rain")
+climate_stack <- stack(mean_win_temp, rel_humidity, mean_win_rain, mean_sum_rain, swapped)
+names(climate_stack) <- c("mean_win_temp", "rel_humidity", "mean_win_rain", "mean_sum_rain", "breeding")
 
 # set resolution
 desired_res <- 0.4
@@ -320,14 +322,7 @@ write_csv(df, "processed_data/clean_toads.csv")
 ```
 
 
-```{r}
-sp_df <- df
-coordinates(sp_df) <- c("longitude", "latitude")
-counts <- rasterize(sp_df, climate_stack, fun = "count", background=0) # cells without observation get a 0
-toad_counts <- counts[["ID"]] # 1 per individual row
-toad_count_df <- as.data.frame(toad_counts, xy = TRUE)
-plot(toad_counts)
-```
+
 
 
 
