@@ -1,26 +1,27 @@
 [general]
 creator=R package 'raster'
-created=2024-05-14 15:55:39
+created=2024-05-14 14:12:31
 [data]
 datatype=FLT4S
 byteorder=little
-nbands=5
+nbands=1
 bandorder=BIL
-minvalue=1.03015157804131:36.3646329062514:2.02067054313225:14.2605129232282:0
-maxvalue=25.7643337249756:84.9025071834888:829.051838265111:1504.76790421302:10
+categorical=FALSE
+minvalue=0
+maxvalue=2
 nodatavalue=-3.4e+38
 [legend]
 legendtype=
 values=
 color=
 [description]
-layername=mean_win_temp:rel_humidity:mean_win_rain:mean_sum_rain:breeding
+layername=layer
 [georeference]
-nrows=72
-ncols=88
+nrows=87
+ncols=105
 xmin=113
-ymin=-44.0788863109049
-xmax=154.312977099237
+ymin=-44.3155452436195
+xmax=154.078244274809
 ymax=-10
 projection=+proj=longlat +datum=WGS84 +no_defs
 wkt=GEOGCRS["unknown",    DATUM["World Geodetic System 1984",        ELLIPSOID["WGS 84",6378137,298.257223563,            LENGTHUNIT["metre",1]],        ID["EPSG",6326]],    PRIMEM["Greenwich",0,        ANGLEUNIT["degree",0.0174532925199433],        ID["EPSG",8901]],    CS[ellipsoidal,2],        AXIS["longitude",east,            ORDER[1],            ANGLEUNIT["degree",0.0174532925199433,                ID["EPSG",9122]]],        AXIS["latitude",north,            ORDER[2],            ANGLEUNIT["degree",0.0174532925199433,                ID["EPSG",9122]]]]

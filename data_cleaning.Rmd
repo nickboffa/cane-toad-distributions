@@ -14,12 +14,129 @@ library(knitr)
 library(randomForest)
 library(rasterVis)
 library(animation)
+library(terra)
 ```
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+# Get Image Raster Data
+
+
+```{r}
+# Define the source and destination
+src_image <- "raw_data/breeding.png"
+dst_image <- "processed_data/georef_breeding.tif"
+
+r <- rast(src_image)
+
+xmin <- 113.0  # Westernmost point of mainland Australia
+xmax <- 154.0  # Easternmost point of mainland Australia
+ymin <- -44.0  # Southernmost point of mainland Australia
+ymax <- -10.0  # Northernmost point of mainland Australia
+
+ext(r) <- c(xmin, xmax, ymin, ymax)
+crs(r) <- "EPSG:4326"
+
+# Save the georeferenced image
+writeRaster(r, dst_image, filetype="GTiff", overwrite=TRUE)
+```
+
+
+```{r}
+# Load the georeferenced image
+image_raster <- rast(dst_image)
+```
+
+```{r}
+# Extract the RGB channels
+red_channel <- raster(image_raster[[1]])
+green_channel <- raster(image_raster[[2]])
+blue_channel <- raster(image_raster[[3]])
+
+black_mask <- (red_channel < 100 | green_channel < 100 | blue_channel > 100)
+
+# Apply the mask to set black pixels to NA
+red_channel[black_mask] <- NA
+green_channel[black_mask] <- NA
+blue_channel[black_mask] <- NA
+blue_channel[blue_channel > 250] <- NA
+blue_channel[is.na(blue_channel)] <- NA
+
+plot(blue_channel) # green channel also works!?
+```
+
+```{r}
+r_df <- as.data.frame(blue_channel, xy = TRUE)
+
+# Rename columns for ease of use
+colnames(r_df) <- c("x", "y", "value")
+
+# Create bins with width 10
+r_df <- r_df %>%
+  mutate(binned_value = cut(value, breaks = seq(min(value, na.rm=TRUE), max(value, na.rm = TRUE), by = 7), ordered_result = T, include.lowest = TRUE))
+
+levels(r_df$binned_value) <- 1:nlevels(r_df$binned_value)
+
+# Plot the raster with ggplot2
+ggplot(r_df, aes(x = x, y = y, fill = binned_value)) +
+  geom_raster() +
+  scale_fill_brewer(palette = "Spectral", na.value = "white") +
+  coord_equal() +
+  labs(title = "Raster Plot with Binned Color Scale",
+       fill = "Value Bins") +
+  theme_minimal() +
+  theme(legend.position = "right")
+```
+
+
+
+```{r}
+hist(r_df$value, na.rm=T, breaks=150)
+```
+
+```{r}
+new_raster <- raster(nrows=nrow(blue_channel), ncols=ncol(blue_channel), ext=extent(blue_channel), crs=crs(blue_channel))
+
+# Assign the binned values to the raster
+values(new_raster) <- as.integer(r_df$binned_value) + 1
+
+agged <- aggregate(new_raster, fact=10, fun=median)
+swapped <- agged
+plot(new_raster)
+```
+
+```{r}
+agged <- aggregate(new_raster, fact=6, fun=median)
+plot(round(agged))
+```
+```{r}
+median
+```
+
+```{r}
+swapped <- round(agged)
+swapped[agged == 10] <- NA # random points
+swapped[agged == 9] <- 9
+swapped[agged == 8] <- 10
+plot(swapped)
+```
+
+
+```{r}
+final <- agged
+final[agged > 6] <- 2
+final[agged <= 6] <- 1
+final[is.na(agged)] <- 0
+plot(final)
+
+raster::writeRaster(final, "processed_data/breeding.grd")
+```
+
+
 # Create Raster Brick
+
 ## Download .txt files
 
 To obtain original .txt data, from the web:
