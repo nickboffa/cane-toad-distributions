@@ -14,6 +14,7 @@ library(knitr)
 library(randomForest)
 library(rasterVis)
 library(animation)
+library(dbscan)
 library(terra)
 ```
 
@@ -206,20 +207,17 @@ writeRaster(climate_stack, filename="processed_data/climate_stack.grd", overwrit
 rm(list = c("mean_sum_rain", "mean_win_rain", "rel_humidity", "max_res_raster", "rasters")) # need mean_win_
 ```
 
-Might be able to use model in:
-raster::predict(climate_stack, model, type='response')
-
 And now we can save it processed_data for easy creation later on.
 ## Create australia raster for cleaning
 ```{r}
-australia_raster <- raster(extent(mean_win_temp), res = res(mean_win_temp))
+land_raster <- raster(extent(mean_win_temp), res = res(mean_win_temp))
 
 # Set values to 1 where "mean_win_temp" is not NA, and 0 otherwise
-australia_raster[] <- NA
+land_raster[] <- NA
 
 # Set values to 1 where "mean_win_temp" is not NA, and 0 otherwise
-australia_raster[!is.na(mean_win_temp)] <- 1
-australia_raster[is.na(mean_win_temp)] <- 0
+land_raster[!is.na(mean_win_temp)] <- 1
+land_raster[is.na(mean_win_temp)] <- 0
 ```
 
 # Prepare Data
@@ -241,6 +239,7 @@ length(toads[!(!is.na(toads$decimalLatitude) & !is.na(toads$decimalLongitude)),]
 
 ## Clean Data
 
+### Country removal
 ```{r}
 clean <- toads |> 
   filter(country == "Australia" & !is.na(decimalLatitude) & !is.na(decimalLongitude))
@@ -252,63 +251,57 @@ georef <- subset(clean, (is.na(decimalLongitude) | is.na(decimalLatitude)) & ! i
   dplyr::select(rightsHolder, stateProvince, locality, eventDate)
 georef
 ```
+
 So there are only 73 rows that could be georeferenced. According to https://docs.gbif.org/georeferencing-best-practices/1.0/en/ however, it is better to not georeference at all than georeference poorly. Given this data is so old
 
-```{r}
-cutoff <- function(x) {-0.5*x + 40}
-ggplot(toads, aes(x=decimalLongitude, y=decimalLatitude, color=country)) +
-  geom_point() +
-  stat_function(fun=cutoff, colour='red')
-```
-
-```{r}
-sp_clean <- clean
-coordinates(sp_clean) <- c("decimalLongitude", "decimalLatitude")
-```
 
 Only take values on land
 
 ```{r}
-is_land <- extract(australia_raster, sp_clean)
+sp_clean <- clean
+coordinates(sp_clean) <- c("decimalLongitude", "decimalLatitude")
+is_land <- raster::extract(land_raster, sp_clean)
 
 # Filter rows in the spatial data frame based on the raster values
 clean <- clean[which(is_land == 1),]
 ```
 
+
 REMOVED clean[which(is_land != 1),] ROWS
 
+
 ```{r}
-cutoff <- function(x) {-0.5*x + 40}
-ggplot(clean, aes(x=decimalLongitude, y=decimalLatitude)) +
-  geom_point() +
-  stat_function(fun=cutoff, colour='red')
+clusters <- dbscan(clean[, c("decimalLongitude", "decimalLatitude")], eps = 2.5, minPts = 3) # arguments heavily affect result
+
+# Add cluster IDs to your data frame
+clean$cluster <- clusters$cluster
+
+# Create a ggplot of the clusters
+ggplot(clean[, c("decimalLongitude", "decimalLatitude", "cluster")], aes(x = decimalLongitude, y = decimalLatitude, color = as.factor(cluster))) +
+  geom_point(aes(size = 3), alpha = 0.6) +
+  labs(title = "DBSCAN Clustering of Geographical Data", x = "Longitude", y = "Latitude") +
+  theme_minimal() +
+  theme(legend.position='none')
 ```
 
-Going to remove observations below the red line:
+The yellow matches current distribution, unlike the cleaned data https://www.researchgate.net/publication/320257212_Effects_of_invasion_history_on_physiological_responses_to_immune_system_activation_in_invasive_Australian_cane_toads
 
 ```{r}
+is_large <- table(clean$cluster) > 100
+large_clusters <- is_large[is_large]
+
 clean <- clean |> 
-  filter(decimalLatitude - cutoff(decimalLongitude) >= 0) # above red line above
+  filter(cluster %in% large_clusters)
 ```
+
 
 ```{r}
 ggplot(clean, aes(x=decimalLongitude, y=decimalLatitude)) +
   geom_point()
 ```
 
-Finally, there are no cane toads in Central Australia
 
-```{r}
-clean <- clean |> 
-  filter(!(decimalLongitude < 135 & decimalLatitude < -22))
-```
 
-```{r}
-ggplot(clean, aes(x=decimalLongitude, y=decimalLatitude)) +
-  geom_point()
-```
-
-I'm happy with this! Would like to automate cleaning a bit further, by determining clusters? I'm sure there's a function online to do it easily.
 
 ## Create main df
 
@@ -321,15 +314,15 @@ df <- df |>
   rename(longitude = decimalLongitude,
          latitude = decimalLatitude)
 
-df <- df[(!is.na(df$latitude) & !is.na(df$longitude)),]
-sp_df <- df
-coordinates(sp_df) <- c("longitude", "latitude")
+head(df)
 
-head(sp_df)
+write_csv(df, "processed_data/clean_toads.csv")
 ```
 
 
 ```{r}
+sp_df <- df
+coordinates(sp_df) <- c("longitude", "latitude")
 counts <- rasterize(sp_df, climate_stack, fun = "count", background=0) # cells without observation get a 0
 toad_counts <- counts[["ID"]] # 1 per individual row
 toad_count_df <- as.data.frame(toad_counts, xy = TRUE)
