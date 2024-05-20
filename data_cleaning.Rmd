@@ -11,7 +11,6 @@ output: html_document
 library(tidyverse)
 library(raster)
 library(knitr)
-#library(rasterVis)
 library(dbscan)
 library(terra)
 library(geodata)
@@ -237,14 +236,14 @@ length(toads[!(!is.na(toads$decimalLatitude) & !is.na(toads$decimalLongitude)),]
 ```
 
 
-
-
 ## Clean Data
 
-### Country removal
+### Remove rows with NA locations
+
+country == "Australia" & 
 ```{r}
 clean <- toads |> 
-  filter(country == "Australia" & !is.na(decimalLatitude) & !is.na(decimalLongitude))
+  filter(!is.na(decimalLatitude) & !is.na(decimalLongitude))
 clean
 ```
 
@@ -257,20 +256,48 @@ georef
 So there are only 73 rows that could be georeferenced. According to https://docs.gbif.org/georeferencing-best-practices/1.0/en/ however, it is better to not georeference at all than georeference poorly. Given this data is so old
 
 
-Only take values on land
+## Remove observations that aren't in mainland Australia
+
+```{r}
+r <- mainland
+xmin_new <- xmin(r) - 10
+xmax_new <- xmax(r) + 10
+ymin_new <- ymin(r) - 10
+ymax_new <- ymax(r) + 10
+
+new_extent <- extent(xmin_new, xmax_new, ymin_new, ymax_new)
+
+# Extend the raster
+extended_mainland <- raster::extend(r, new_extent, value = NA)
+
+fill_cells2 <- function(x) {
+  if (any(!is.na(x)) | any(x == 1, na.rm=T)) {
+    return(TRUE)
+  } else {
+      return(FALSE) # centre
+  }
+}
+
+# Apply the function to the raster using focal
+padded_mainland <- focal(extended_mainland, w=matrix(1, 13, 13), fun=fill_cells2, na.policy='omit', pad=TRUE)
+plot(padded_mainland)
+```
+
 
 ```{r}
 sp_clean <- clean
 coordinates(sp_clean) <- c("decimalLongitude", "decimalLatitude")
-is_land <- raster::extract(land_raster, sp_clean)
+is_land <- raster::extract(padded_mainland, sp_clean)
 
 # Filter rows in the spatial data frame based on the raster values
-clean <- clean[which(is_land == 1),]
+clean <- clean[which(is_land > 0),]
 ```
 
 
 REMOVED clean[which(is_land != 1),] ROWS
 
+
+### Remove rows that aren't in the main cluster
 
 ```{r}
 clusters <- dbscan(clean[, c("decimalLongitude", "decimalLatitude")], eps = 2.5, minPts = 3) # arguments heavily affect result
@@ -297,15 +324,23 @@ clean <- clean |>
 ```
 
 
+### Summary
+
+
 ```{r}
-ggplot(clean, aes(x=decimalLongitude, y=decimalLatitude)) +
-  geom_point()
+unique_points <- anti_join(toads, clean, by = c("decimalLongitude", "decimalLatitude"))
+
+# Plot the data
+ggplot() +
+  geom_point(data = toads, aes(x = decimalLongitude, y = decimalLatitude), color = "black") +
+  geom_point(data = unique_points, aes(x = decimalLongitude, y = decimalLatitude), color = "red") +
+  xlim(100, 160) +
+  ylim(-40, -5)
 ```
 
 
 
-
-## Create main df
+## Select useful columns and write to file
 
 Now create main dataframe
 ```{r}
