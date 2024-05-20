@@ -7,13 +7,11 @@ output: html_document
 
 # Load Libraries
 
-```{r load-libraries}
+```{r load-libraries, message=F}
 library(tidyverse)
 library(raster)
 library(knitr)
-library(randomForest)
-library(rasterVis)
-library(animation)
+#library(rasterVis)
 library(dbscan)
 library(terra)
 library(geodata)
@@ -21,7 +19,7 @@ library(sf)
 ```
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = TRUE)
 ```
 # Get WorldClim data
 
