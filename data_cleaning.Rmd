@@ -16,26 +16,97 @@ library(rasterVis)
 library(animation)
 library(dbscan)
 library(terra)
+library(geodata)
+library(sf)
 ```
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+# Get WorldClim data
 
-# Get Image Raster Data
+Data can be downloaded by running 
+
+bioclim_data <- geodata::worldclim_global(var = "bio", res = 10, path = output_dir)
+
 
 
 ```{r}
-# Define the source and destination
-src_image <- "raw_data/breeding.png"
-dst_image <- "processed_data/georef_breeding.tif"
+# Specify the directory to save the downloaded files
+output_dir <- "raw_data/climate"
 
-r <- rast(src_image)
+# Download the 19 bioclimatic layers
+
+bio_files <- list.files("raw_data/climate/wc2.1_10m", full.names = TRUE)
+```
+
+
+```{r}
+bioclim_names <- c(
+  "Annual Mean Temperature",            # bio1
+  "Mean Diurnal Range",                 # bio2
+  "Isothermality",                      # bio3
+  "Temperature Seasonality",            # bio4
+  "Max Temperature of Warmest Month",   # bio5
+  "Min Temperature of Coldest Month",   # bio6
+  "Temperature Annual Range",           # bio7
+  "Mean Temperature of Wettest Quarter",# bio8
+  "Mean Temperature of Driest Quarter", # bio9
+  "Mean Temperature of Warmest Quarter",# bio10
+  "Mean Temperature of Coldest Quarter",# bio11
+  "Annual Precipitation",               # bio12
+  "Precipitation of Wettest Month",     # bio13
+  "Precipitation of Driest Month",      # bio14
+  "Precipitation Seasonality",          # bio15
+  "Precipitation of Wettest Quarter",   # bio16
+  "Precipitation of Driest Quarter",    # bio17
+  "Precipitation of Warmest Quarter",   # bio18
+  "Precipitation of Coldest Quarter"    # bio19
+)
+
+# Read the bioclimatic layers into a RasterStack
+bioclim_stack <- stack(bio_files)
+
+# Assign the new names to the layers in the bioclim_stack
+names(bioclim_stack) <- bioclim_names
 
 xmin <- 113.0  # Westernmost point of mainland Australia
 xmax <- 154.0  # Easternmost point of mainland Australia
 ymin <- -44.0  # Southernmost point of mainland Australia
 ymax <- -10.0  # Northernmost point of mainland Australia
+
+base_extent <- c(xmin, xmax, ymin, ymax)
+
+bioclim_stack <- crop(bioclim_stack, base_extent)
+```
+
+
+
+```{r}
+australia_gadm <- gadm(country = "AUS", level = 0, path = tempdir())
+
+# Convert to sf object and cast to polygons
+australia_sf <- australia_gadm %>%
+  st_as_sf() %>%
+  st_cast("POLYGON")
+
+# Calculate area and select the largest polygon (mainland Australia)
+mainland_australia <- australia_sf %>%
+  mutate(area = st_area(.)) %>%
+  arrange(desc(area)) %>%
+  slice(1)
+
+# Convert the map to a Spatial object for masking
+australia_spatial <- as(mainland_australia, "Spatial")
+
+# Mask the bioclim_stack with the mainland Australia shapefile
+bioclim_stack_masked <- mask(bioclim_stack, australia_spatial)
+
+# Plot the result to verify
+plot(bioclim_stack_masked)
+
+writeRaster(bioclim_stack, "processed_data/bioclim_stack", filetype="GTiff", overwrite=TRUE)
+```
 
 
 # Get Image Raster Data
