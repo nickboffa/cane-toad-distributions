@@ -1,0 +1,26 @@
+[general]
+creator=R package 'raster'
+created=2024-05-20 11:06:54
+[data]
+datatype=FLT4S
+byteorder=little
+nbands=19
+bandorder=BIL
+minvalue=5.82692718505859:10.2156248092651:-0.060708325356245:90:11:0:7.8989143371582:28:0:14:0:1.59999942779541:21.0526275634766:70.5522308349609:16.7602500915527:-4.2335000038147:5.69999885559082:0.755874931812286:3.60766673088074
+maxvalue=29.0525436401367:33.0220832824707:27.216667175293:3945:729:207:142.02392578125:1970:705:1450:1167:17.1188335418701:75.7954330444336:680.336486816406:42.1570014953613:24.7000007629395:34.9942512512207:32.669376373291:28.983959197998
+nodatavalue=-3.4e+38
+[legend]
+legendtype=
+values=
+color=
+[description]
+layername=Annual.Mean.Temperature:Mean.Diurnal.Range:Isothermality:Temperature.Seasonality:Max.Temperature.of.Warmest.Month:Min.Temperature.of.Coldest.Month:Temperature.Annual.Range:Mean.Temperature.of.Wettest.Quarter:Mean.Temperature.of.Driest.Quarter:Mean.Temperature.of.Warmest.Quarter:Mean.Temperature.of.Coldest.Quarter:Annual.Precipitation:Precipitation.of.Wettest.Month:Precipitation.of.Driest.Month:Precipitation.Seasonality:Precipitation.of.Wettest.Quarter:Precipitation.of.Driest.Quarter:Precipitation.of.Warmest.Quarter:Precipitation.of.Coldest.Quarter
+[georeference]
+nrows=204
+ncols=246
+xmin=113
+ymin=-44
+xmax=154
+ymax=-10
+projection=+proj=longlat +datum=WGS84 +no_defs
+wkt=GEOGCRS["unknown",    DATUM["World Geodetic System 1984",        ELLIPSOID["WGS 84",6378137,298.257223563,            LENGTHUNIT["metre",1]],        ID["EPSG",6326]],    PRIMEM["Greenwich",0,        ANGLEUNIT["degree",0.0174532925199433],        ID["EPSG",8901]],    CS[ellipsoidal,2],        AXIS["longitude",east,            ORDER[1],            ANGLEUNIT["degree",0.0174532925199433,                ID["EPSG",9122]]],        AXIS["latitude",north,            ORDER[2],            ANGLEUNIT["degree",0.0174532925199433,                ID["EPSG",9122]]]]
