@@ -203,95 +203,28 @@ Not perfect, but pretty good
 ```{r}
 raster::writeRaster(breeding_corrected, "processed_data/breeding.grd", overwrite=TRUE)
 ```
-
-
-# Create Raster Brick
-
-## Download .txt files
-
-To obtain original .txt data, from the web:
-
-1. Click the link for each file type, specified in the *table* below
-2. Find the text saying "Download: Grid"
-3. Click on the hyperlinked "Grid" to download
+# Create australia_raster for ABM
 
 
 ```{r}
-table <- data.frame(
-  Measurement = c("Mean Winter Temperature", "Mean Summer Rainfall", "Mean Winter Rainfall", "Mean Annual Relative Humidity at 9am"),
-  Period = c("June to August 1991 to 2020", "December to February 1991 to 2020", "June to August 1991 to 2020", "1976 to 2005"),
-  Link = c("[Mean Winter Temperature Data](http://www.bom.gov.au/climate/maps/averages/temperature/?maptype=mean&period=win&region=aus)",
-           "[Mean Summer Rainfall Data](http://www.bom.gov.au/climate/maps/averages/rainfall/?period=sum&region=aus)",
-           "[Mean Winter Rainfall Data](http://www.bom.gov.au/climate/maps/averages/rainfall/?period=win&region=aus)",
-           "[Mean Annual Relative Humidity at 9am Data](http://www.bom.gov.au/climate/maps/averages/relative-humidity/)")
-)
+degree_per_km <- 1 / 111
+km_per_cell <- 40
+degree_per_cell <- degree_per_km * km_per_cell
+agg_factor <- degree_per_cell / res(bioclim_stack[[1]])
 
-# Display table using kable
-kable(table, format = "html", escape = FALSE)
+# Aggregate the raster to the new resolution
+mainland <- mask(bioclim_stack[["Isothermality"]], australia_spatial)
+mainland_agg <- aggregate(mainland, fact = agg_factor)
+
+australia_raster <- !is.na(mainland_agg)
+plot(australia_raster)
 ```
 
-## Load raster layers and make stack
-```{r create-raster-brick}
-mean_win_temp <- raster("raw_data/climate/mean_winter_temp.txt")
-rel_humidity <- raster("raw_data/climate/rel_humidity_9am.txt")
-mean_win_rain <- raster("raw_data/climate/mean_winter_rainfall.txt")
-mean_sum_rain <- raster("raw_data/climate/mean_summer_rainfall.txt")
-
-rasters <- list(mean_win_temp, rel_humidity, mean_win_rain, mean_sum_rain, swapped)
-
-# Find max resolution raster
-max_res <- max(res(mean_win_temp), res(rel_humidity), 
-                  res(mean_win_rain), res(mean_sum_rain), res(swapped))
-
-max_res_index <- which.max(c(res(mean_win_temp), res(rel_humidity), res(mean_win_rain), res(mean_sum_rain), res(swapped)))
-
-max_res_raster <- rasters[[floor(max_res_index/2)]]
-
-# Resample rasters to the extent and resolution of raster with max res
-mean_win_temp <- resample(mean_win_temp, max_res_raster, method = "bilinear")
-rel_humidity <- resample(rel_humidity, max_res_raster, method = "bilinear")
-mean_win_rain <- resample(mean_win_rain, max_res_raster, method = "bilinear")
-mean_sum_rain <- resample(mean_sum_rain, max_res_raster, method = "bilinear")
-swapped <- resample(swapped, max_res_raster, method = "bilinear")
-
-# Give themm all australia shape, using the fact that mean_win_temp is shaped like Australia
-
-rel_humidity[is.na(mean_win_temp)] <- NA
-mean_win_rain[is.na(mean_win_temp)] <- NA
-mean_sum_rain[is.na(mean_win_temp)] <- NA
-swapped[is.na(mean_win_temp)] <- NA
-swapped[is.na(swapped) & !is.na(mean_win_temp)] <- 0
-
-# Create a raster brick
-climate_stack <- stack(mean_win_temp, rel_humidity, mean_win_rain, mean_sum_rain, swapped)
-names(climate_stack) <- c("mean_win_temp", "rel_humidity", "mean_win_rain", "mean_sum_rain", "breeding")
-
-# set resolution
-desired_res <- 0.4
-fact <- desired_res/res(climate_stack)
-climate_stack <- aggregate(climate_stack, fact=fact)
-
-plot(climate_stack)
-
-
-writeRaster(climate_stack, filename="processed_data/climate_stack.grd", overwrite=TRUE)
-rm(list = c("mean_sum_rain", "mean_win_rain", "rel_humidity", "max_res_raster", "rasters")) # need mean_win_
-```
-
-And now we can save it processed_data for easy creation later on.
-## Create australia raster for cleaning
 ```{r}
-land_raster <- raster(extent(mean_win_temp), res = res(mean_win_temp))
-
-# Set values to 1 where "mean_win_temp" is not NA, and 0 otherwise
-land_raster[] <- NA
-
-# Set values to 1 where "mean_win_temp" is not NA, and 0 otherwise
-land_raster[!is.na(mean_win_temp)] <- 1
-land_raster[is.na(mean_win_temp)] <- 0
+writeRaster(australia_raster, "processed_data/australia_raster", filetype="GTiff", overwrite=TRUE)
 ```
 
-# Prepare Data
+# Prepare Observational Data
 
 ## Load raw data
 
