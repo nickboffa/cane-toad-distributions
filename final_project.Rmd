@@ -61,17 +61,54 @@ library(skimr)
 library(grid)
 ```
 
+
+# Raw data description
+
+## WorldClim 2.1 (Fick & Hijmans, 2017)
+
+In this report we use 2 of the 19 bioclimatic variables available in WorldClim 2.1, at a resolution of 10 minutes. These variables are raster surfaces for the entire globe, where the values are the average from 1970-2000. The two we use are:
+
+$$ \text{Isothermality} = 100 \cdot \frac{\text{Average difference between maximum temp and minimum temp in a month}}{\text{Annual temperature range}}$$
+
+$$ \text{Precipitation of Driest Quarter} = \text{Total precipitation (in millimetres) that fell in driest 3 months of year} $$
+
+To download all 19, run the following code:
+  geodata::worldclim_global(var = "bio", res = 10, path = "where/you/want/the/folder/to/be")
+  
+Isothermality is then "wc2.1_10m_bio_2.tif", and PDQ is "wc2.1_10m_bio_17.tif". Running raster::raster() on the respective filename will load the data into R.
+
 ```{r}
-climate_stack <- stack("processed_data/climate_stack.grd") # automatically includes .gri file as well
+bioclim_stack <- stack("processed_data/bioclim_stack.grd") # automatically includes .gri file as well
+```
 
-df <- read_csv("processed_data/clean_toads.csv")
-sp_df <- df
-coordinates(sp_df) <- c("longitude", "latitude")
+## Breeding Figure (supplementary material of...)
 
+Kearney et. al (2008) used the biology of cane toads to predict where they would be able to survive. We will be using their results to inform our model, but unfortunately their data is not available online. We took a screenshot of Figure S1 from their paper (supplementary is https://www.ecography.org/sites/ecography.org/files/appendix/e5457.pdf), bounded by the northernmost, easternmost, westernmost points of Australia, and the southernmost point of Tasmania. We then converted this to a raster.
+
+```{r}
 breeding <- raster("processed_data/breeding.grd")
 ```
 
-# Create cell_df
+```{r}
+plot(bioclim_stack)
+```
+
+
+
+## Atlas of Living Australia
+
+The dataset comprises occurrence records of cane toads (*Rhinella marina*), downloaded from the Atlas of Living Australia (ALA). It includes geographical coordinates indicating the presence of cane toads across various regions in Australia. The ALA is a nationally recognised data repository that collates biodiversity data from multiple sources (such as from iNaturalist), facilitating research and conservation efforts. This dataset is crucial for understanding the distribution and spread of cane toads, an invasive species with significant ecological impacts. For more info see Belbin et al. (2021).
+
+Because the galah package blocked me, occurrence data for the cane toads was obtained by pressing 'download' in this webpage https://biocache.ala.org.au/occurrences/search?q=lsid:https://biodiversity.org.au/afd/taxa/5c8e5d04-49dd-43ec-b9e0-f4e55ee82407#tab_recordsView
+
+```{r}
+df <- read_csv("processed_data/clean_toads.csv")
+
+# create spatial dataframe
+sp_df <- df
+coordinates(sp_df) <- c("longitude", "latitude")
+```
+
 
 ```{r}
 create_cell_df <- function(data, years_up_to=2024, res=0.5) {
