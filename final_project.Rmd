@@ -16,39 +16,50 @@ output:
 
 # Word/figure count
 
-Words: [The number of words in your document, calculated using the word_count() function at the end of this document]
-Figures: [The number of figures in your document. You can just count these]
+Words: 2335
+Figures:
 
 # Location on GitHub
 
 https://github.com/nickboffa/DS4B-final-report
 
-# Data Description
+# Project Outline
 
-[A brief (~100-200 words should be more than enough) description of the dataset, referencing any key publications that go with it]
+## Aim
 
-# Questions/Aims
+To use environmental data, together with outputs from mechanistic models, to try to replicate (and then predict) the colonisation of Australia by cane toads using an agent-based model (ABM).
 
-Question: Correlative and mechanistic models disagree on the fundamental niche of cane toads in Australia (particularly in the south). Wh
+## Justification
 
-Aim: To use environmental data, together with layers from mechanistic models, to try to replicate (and thus predict into the future) the colonisation of Australia by cane toads.
+Many attempts have been made to model the environmental niche of cane toads, but their range-shifting nature has made this difficult (Kearney 2010). The traditional method is the 'correlative' approach: using a set of environmental predictor variables, together with some algorithm (e.g. GAM), to predict the fundamental niche of a species - such as in Urban et. al (2008). However, particularly, with cane toads such models tend to be inaccurate, as they have not reached equilibrium with their fundamental niche (Kearney 2010). 
 
-[A brief section which first states and then justifies the questions/aims of your EDA. Must provide evidence of independent research into what has been done before on these questions/aims. See above for examples.]
+Kearney et. al (2008) resolved this issue by only using the physiology of cane toads to predict their fundamental niche (the 'mechanistic' approach), and found that access to breeding sites was the primary thing limiting the toads invasion inland. But this approach can only model finite biological mechanisms, and so may miss key aspects determining the toad's fundamental niche.
 
-Copying from GitHub:
-So in this paper (https://nsojournals.onlinelibrary.wiley.com/doi/10.1111/j.0906-7590.2008.05457.x), they mention near the end
+At the recommendation of Kearney 2008 and 2010, we will thus use this mechanistic output, that tells where the cane toads should be theoretically able to live, to define the pseudoabsence points that then inform our correlative model - this was done by Kearney 2010; however, we shall also incorporate the recent recommendations of Soley-Guardia, Alvarado-Serrano, & Anderson (2024), which earlier models have failed to incorporate (?). That said, we will ignore artificial water sources.
 
-"One way to reduce such extrapolation would be to use a mechanistic approach to define areas in which the species cannot persist (as we have done here). Once these areas are defined, pseudo-absence points could be generated within them and these pseudo-absence points could then inform a correlative model. In addition, output layers of mechanistic models could be used as input layers for correlative models. Such mechanistically-derived layers are composites of multiple environmental conditions transformed through the traits of the organism into one composite variable that directly reflects fitness impacts, providing highly proximal variables for modelling (sensu Austin 2002). Thus, mechanistic approaches can be used in synergy with correlative approaches. Such synergies would potentially extract distribution information from both the basic physiology of the organism as well as its current known range, and would be a valuable avenue for further research."
+The key difference in this report to the primary literature is the use of an ABM. By introducing a temporal component to the model, we can predict not just where the toad's will end up, but when they will arrive there. We shall only use occurrence data up to the year 2000, so that we may validate our model with present-day data.
 
-So, I decided the best way to inform everything by the primary literature is to try combine mechanistic models with the correlative approach I was using (which has been done by quite a few people in many different ways, e.g. https://royalsocietypublishing.org/doi/10.1098/rspb.2007.0114).
-
-The problem was (and still is), that the output layers to their mechanistic models are not accessible. That said, their figures are (https://www.ecography.org/sites/ecography.org/files/appendix/e5457.pdf), so I tried to read the data from the figure myself, and was fairly(?) successful. This meant I had a layer for how good each area is for cane toad breeding. I've been fiddling with exactly how to incorporate this data into the model, but at the very least this is using the primary literature.
-
-Though these articles are old, I haven't found any since that incorporated these suggestions. Cane toad modelling shifted to other aims, other than just 'where will the toads end up'
+And clearly it's a good aim, because it turns out there's even an open project at Monash regarding it (https://supervisorconnect.it.monash.edu/projects/research/integrating-novel-technologies-and-modelling-tools-predict-species-responses)
 
 
 
-# Load Processed Data 
+# Beginning
+
+```{r}
+set.seed(8723)
+
+library(R6)
+library(tidyverse)
+library(animation)
+library(raster)
+library(randomForest)
+library(sf)
+library(gridExtra)
+library(viridis)
+library(cowplot)
+library(skimr)
+library(grid)
+```
 
 ```{r}
 climate_stack <- stack("processed_data/climate_stack.grd") # automatically includes .gri file as well
