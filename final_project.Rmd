@@ -172,145 +172,118 @@ plot(rf_model)
 varImpPlot(rf_model) 
 ```
 
-Model 2 is way better?
+
+## ABM
+
+The model begins with two toads, in the two locations toads were first released (~Cairns and ~Brisbane). In discrete timesteps, and independently of other toads,
+each toad then:
+1. moves
+2. updates its 'energy'
+3. Depending on its new energy, dies, reproduces, or does nothing as appropriate.
+
+
+### Behaviours and Attributes
+#### Moving
+
+Toads can only move to cells that are on land, as defined by the australia_raster. Its options are thus its $\leq8$ neighbouring cells (not including non-land cells), or its own cell. It chooses from these options randomly. In real life, toads on the western front have evolved longer legs (Phillips et. al, 2006), and move up to 5 times faster than the original toads that landed. To account for this, toads west of the NT-QLD border move three times each tick.
+
+#### Energy
+
+Each toad has a given energy $E_T$, $E_T \in (\infty, 1]$.
+
+Each cell has an 'affinity' value associated with it, $A_C$, where $A \in [-1, 1]$. After moving, the toad's energy is updated using the formula
+
+$$ E_T = E_T + |\Delta_M| A_C $$ 
+
+Where $|\Delta_M|$ is the maximum absolute change in energy per turn. However, $E_T + \Delta_M A_C > 1$, then $E_T$ is set to 1.
+
+The $A_C$ are defined by the following affinities raster
 
 ```{r}
-hist(log10(predictions1))
-```
-
-
-# Future Predicting 
-
-```{r}
-millenium <- create_cell_df(sp_df, years_up_to=2000, res=0.4)
-head(millenium)
-```
-```{r}
-sum(millenium$n_toads) < sum(cell_df$n_toads)
-```
-
-```{r}
-mill_model <- create_model(millenium)
-
-predictions_m <- predict(climate_stack, mill_model)
-```
-
-```{r}
-plot(log10(predictions1))
-```
-```{r}
-res(australia_raster)
-```
-
-
-```{r}
-plot(log10(predictions_m))
-```
-
-# Time
-
-1. Create rasterbrick over time
-
-```{r}
-
-```
-
-```{r}
-plot(climate_stack)
-```
-
-```{r}
-```
-
-```{r}
-lat_mask <- climate_stack[["mean_win_temp"]]
-lat_mask <- init(lat_mask, "y") < -39.3  # Creates a logical mask for latitudes less than -40
-
-# Apply the mask to the raster
-mainland <- mask(climate_stack[["mean_win_temp"]], lat_mask, maskvalue=1)
-mainland_agg <- aggregate(mainland, fact=2)
-plot(mainland_agg)
-
-australia_raster <- raster(extent(mainland_agg), res = res(mainland_agg))
-
-# Set values to 1 where "mean_win_temp" is not NA, and 0 otherwise
-australia_raster[] <- NA
-
-# Set values to 1 where "mean_win_temp" is not NA, and 0 otherwise
-australia_raster[!is.na(mainland_agg)] <- 1
-australia_raster[is.na(mainland_agg)] <- 0
-
-rm(list = c("mainland", "mainland_agg", "lat_mask")) #"mean_win_temp",
-plot(australia_raster)
-```
-
-
-```{r}
-plot(logged)
-```
-
-```{r}
-predictions2_agg <- resample(predictions2, australia_raster)
-predictions1_agg <- resample(predictions1, australia_raster)
-
-logged <- log10(predictions1_agg)
-sqrted <- sqrt(predictions2_agg)
-
-input <- logged
-
-normalised <- (input - minValue(input))/(maxValue(input) - minValue(input))
+predictions_agg <- resample(predictions, australia_raster)
+normalised <- (predictions_agg - minValue(predictions_agg))/(maxValue(predictions_agg) - minValue(predictions_agg)) # min-max normalise
 normalised[which(is.na(normalised[]))] <- 0
 
 affinities <- (2*normalised - 1) # -1 to 1
-plot(affinities)
 ```
 
-# Use OOP
+#### Dying
+If the toad's energy drops below die_limit, then it dies (is removed from the model/raster).
 
-```{r}
-library(R6)
-```
+#### Reproducing
+
+If the toad's energy is above repr_limit, then a toad with the same energy and position as its parent is created.
+
+### Toad Class in R
+
+These attributes behaviours (apart from reproduction) are implemented in the following 'Toad' object.
 
 ```{r}
 Toad <- R6Class("toad",
+  # Define attributes
   public = list(
     pos=NULL,
     energy=NULL,
     id=NULL,
-    # Constructor method
     initialize = function(pos, energy, id) {
       self$pos <- pos
       self$energy <- energy
       self$id <- id
     },
+    # Define behaviours
     move = function() {
-      # Determine where it can move to that's on land
       indices <- adjacent(australia_raster, cell = self$pos, directions = 8, pairs=TRUE)[,2]
-      neighboring_cells <- australia_raster[indices]
+      indices <- c(indices, self$pos) # makes staying still an option
+      neighboring_cells <- (australia_raster - fixed_cells)[indices] #
       names(neighboring_cells) <- indices
       move_options <- as.numeric(names(neighboring_cells[which(neighboring_cells == 1)])) # list of cells that are still on land
       
-      # Pick destination and move it there
-      destination <- sample(move_options, 1) # prob doesn't need to sum to 1 btw
-      self$pos <- destination
+      if (length(move_options) > 0) {
+        self$pos <- sample(move_options, 1)
+      }
     },
+    
     update_energy = function() {
       self$energy <- self$energy + max_abs_delta_energy*affinities[self$pos]
-      if (self$energy > 1) {self$energy <- 1}
-      if (self$energy < 0) {self$energy <- 0}
+      if (self$energy > 1) {self$energy <- 1} # don't change if energy < 0, since then we want toad to die
     },
     die = function() {
-        remove_toad <- function(any_toad) {
-          any_toad$id != self$id
-        }
-        # Remove the toad with the specified id
+        remove_toad <- \(any_toad) any_toad$id != self$id
         alive_toads <- Filter(remove_toad, alive_toads)
     }
   )
 )
 ```
 
+### Decreasing Running Time
 
+There are ~ 200 million cane toads in Australia, which a lowly Macbook cannot cope with. Thus, two measures were implemented to decrease computational cost of the model:
+
+1. Each tick, each cell can only have at most $6$ toads on it. Extras are killed using the following function:
+
+```{r}
+remove_excess <- function(toads_list, max_toads=6) {
+  pos_counts <- table(sapply(toads_list, function(t) t$pos))
+  filtered_toads <- list()
+  
+  for (pos in names(pos_counts)) {
+    toads_for_pos <- toads_list[sapply(toads_list, function(t) t$pos == pos)][1:min(max_toads, pos_counts[pos])]
+    filtered_toads <- c(filtered_toads, toads_for_pos)
+  }
+  return(filtered_toads)
+}
+```
+
+2. If a cell is surrounded by cells (king's move) with $\geq6$ toads, then toads on that cell won't update (move, change energy, etc.) the next time-step. These cells and toads are called "fixed". To check if a cell is fixed:
+
+```{r}
+is_fixed <- function(cell, max_toads) {
+  any(!is.na(cell)) && all(cell >= max_toads | is.na(cell))
+}
+```
+
+
+### Implementation
 
 ```{r}
 update_tracker <- function(tracker, toad_list) {
@@ -321,138 +294,103 @@ update_tracker <- function(tracker, toad_list) {
   }
   return(tracker)
 }
-```
 
-```{r}
-start <- cellFromXY(australia_raster, c(145.7844, -17.09833)) # actual start of cane toad invasion
-start
-```
-
-```{r}
-remove_excess <- function(toads_list, max_toads=10) {
-  # Count the occurrences of each 'pos' in the list
-  pos_counts <- table(sapply(toads_list, function(t) t$pos))
-  
-  # Initialize a list to store filtered toads
-  filtered_toads <- list()
-  
-  # Loop through each unique 'pos'
-  for (pos in names(pos_counts)) {
-    # Get the first 10 toads for the current 'pos'
-    toads_for_pos <- toads_list[sapply(toads_list, function(t) t$pos == pos)][1:min(max_toads, pos_counts[pos])]
-    
-    # Add the filtered toads to the list
-    filtered_toads <- c(filtered_toads, toads_for_pos)
-  }
-  
-  return(filtered_toads)
+flatten <- function(tracker_raster) { # for graphing
+  flattened_tracker <- tracker_raster
+  flattened_tracker[] <- 0
+  flattened_tracker[tracker_raster > 1] <- 1
+  flattened_tracker[is.na(tracker_raster)] <- NA
+  return(flattened_tracker) 
 }
+
+speed <- \(long) 1+2*(long < 138)
 ```
 
 
-```{r}
-has_stabilised <- function(toad_counts, threshold=5) {
-  toad_changes <- diff(toad_counts) # got rid of abs
-  last_n_changes <- tail(toad_changes, 10) # works even if length(toad_changes) < 5
-  if (max(last_n_changes) < threshold) {
-    return(T)
-  } else {
-    return(F)
-  }
-}
-```
 
 ```{r}
-toad_long_lat <- xyFromCell(australia_raster, alive_toads[[1]]$pos)
-extract(breeding, toad_long_lat)
-```
-
-```{r}
-max_abs_delta_energy <- 2
-init_energy <- 0.8
+max_abs_delta_energy <- 4
+init_energy <- 1
 repr_limit <- 0.5
 die_limit <- 0.2
-steps_per_year <- 1
+max_toads_per_cell <- 4
+min_perm_fix <- 10
 
 # setup
-trackers <- vector("list", length = 100)
+trackers <- vector("list", length = 200)
 tracker <- raster(extent(australia_raster), res = res(australia_raster))
 tracker[] <- 0
 
-alive_toads <- c(Toad$new(pos = start, energy = init_energy, id=1))
+fixed_cells <- 0*australia_raster
+
+start <- cellFromXY(australia_raster, c(145.7844, -17.09833)) # Cairns
+start2 <- cellFromXY(australia_raster, c(153.0260, -27.4705)) # Brisbane
+
+alive_toads <- c(Toad$new(pos = start, energy = init_energy, id=1),
+                 Toad$new(pos = start2, energy = init_energy, id=1))
 last_id <- 1
 
-num_toads_alive <- c(0, 10^6, 0)
+sum_fixed_cells <- fixed_cells
+```
 
-tick <- 0
-while (!has_stabilised(num_toads_alive, threshold=100-length(alive_toads))) {
-  tick <- tick + 1
-  for (toad in alive_toads) { # what happens when alive_toads is updated during?
-    for (m in 1:steps_per_day) {toad$move()}
+```{r}
+n_cells_in_map <- cellStats(australia_raster, 'sum')
+```
+
+
+```{r, cache=TRUE}
+for (tick in tick:100) {
+  moving_toads <- Filter(function(toad) {
+                            return(fixed_cells[toad$pos] != 1 & sum_fixed_cells[toad$pos] < min_perm_fix)
+                          }, alive_toads)
+  for (toad in moving_toads) {
+    
+    for (i in 1:speed(xyFromCell(australia_raster, toad$pos)[1])) {toad$move()}
+    
     toad$update_energy() 
-    toad_long_lat <- xyFromCell(australia_raster, alive_toads[[1]]$pos)
-    if (toad$energy > repr_limit & extract(breeding, toad_long_lat) > 0) { # reproduce
-      for (i in 1:extract(breeding, toad_long_lat)) {
+
+    if (toad$energy > repr_limit) { # reproduce
         new_id <- last_id + 1
         last_id <- new_id
         alive_toads <- c(alive_toads, Toad$new(pos = toad$pos, energy = init_energy, id=new_id))
-      }
-    }
-    if (toad$energy < die_limit) { # die
-      remove_toad <- function(any_toad) {
-          any_toad$id != toad$id
-        }
-        # Remove the toad with the specified id
-        alive_toads <- Filter(remove_toad, alive_toads)
+    } else if (toad$energy < die_limit) { # die
+      toad$die()
     }
   }
   
-  print(length(alive_toads))
-  alive_toads <- remove_excess(alive_toads, max_toads=4)
-  print(length(alive_toads))
-  num_toads_alive <- c(num_toads_alive, length(alive_toads))
+  fixed_cells <- focal(tracker, w=matrix(1, 3, 3), fun=function(cell) is_fixed(cell, max_toads_per_cell)) #pad=TRUE, padValue=NA)
+  sum_fixed_cells <- sum_fixed_cells + fixed_cells
+  alive_toads <- remove_excess(alive_toads, max_toads=max_toads_per_cell)
   
   tracker <- update_tracker(tracker, alive_toads)
   trackers[[tick]] <- tracker
   
-  print(paste(tick, length(alive_toads)))
-  
-  if (length(alive_toads) == 0) {
-    break
-  }
+  cat(paste("Tick: ", tick, "\n",
+            "Alive toads: ", length(alive_toads), "\n",
+            "Moving toads: ", length(moving_toads), " (", round(100*length(moving_toads)/length(alive_toads)), "%)\n",
+            "Cells covered: ", cellStats(flatten(tracker), 'sum'), "\n",
+            "Percentage of mainland covered: ", round(100*cellStats(flatten(tracker), 'sum')/n_cells_in_map), "% \n\n", sep = ""))
 }
 
-plotting <- trackers[[tick-1]] + 0.0005*length(alive_toads)*australia_raster
-plot(plotting)
-```
-
-```{r}
-plot(breeding)
-```
-
-```{r}
-tick
-```
-
-```{r}
-plot(affinities)
+plot(tracker)
 ```
 
 
 
-## animate
 
 
-  if (length(alive_toads) > 200) {
-    alive_toads <- sample(alive_toads, 100) # instead could just remove toads from cells that have heaps already?
-  }
+processing file: final_project.Rmd
+                                                                                                               
 
+Quitting from lines 389-423 [unnamed-chunk-21] (final_project.Rmd)
+Error in `setValues()`:
+! length(values) is not equal to ncell(x), or to 1
+Backtrace:
+ 1. toad$move()
+ 3. australia_raster - fixed_cells
+ 5. raster::setValues(...)
+Execution halted
 
-  plot(trackers[[time_step]], main = paste("Time Step:", time_step))
-
-```{r}
-length(trackers[!sapply(trackers, is.null)])
-```
 
 ```{r}
 tracker_brick <- brick(trackers[!sapply(trackers, is.null)])
