@@ -392,96 +392,111 @@ Backtrace:
 Execution halted
 
 
+## Plot Results
+
+```{r}
+plot(sum_fixed_cells > 10)
+```
+
+
+
 ```{r}
 tracker_brick <- brick(trackers[!sapply(trackers, is.null)])
+# Plot model data
+k <- 7
+yrs <- seq(1, nlayers(tracker_brick), by = k)
+plot_list_model <- lapply(yrs, function(i) {
+  tracker_polygons <- rasterToPolygons(flatten(tracker_brick[[i]]), fun = function(x) x > 0, dissolve = TRUE)
+  tracker_sf <- st_as_sf(tracker_polygons)
+  st_crs(tracker_sf) <- 4326
 
-# Create a function to generate plots for each time step
-plot_toads <- function(time_step) {
-  tracker_df <- as.data.frame(trackers[[time_step]], xy = TRUE)
-  names(tracker_df)[3] <- 'value' 
-  tracker_df <- na.omit(tracker_df)
-  tracker_df$value <- fct_rev(as.factor(tracker_df$value))
-  
-  p <- ggplot(tracker_df, aes(x,y)) +
-    geom_raster(aes(fill = value)) +
-    coord_fixed() +
-    viridis::scale_fill_viridis(discrete=TRUE, option='plasma') +
-    theme_void() +
-    labs(main = paste("Time Step:", time_step))
-  print(p)
+  ggplot() +
+    geom_sf(data = australia_sf, fill = "grey", color = "black") +
+    geom_sf(data = tracker_sf, fill = "red", color = "black") +
+    theme_nothing()
+})
+
+# Plot actual data
+get_spatial_data <- function(data, year_limit) {
+  data %>%
+    filter(year <= year_limit) %>%
+    st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
+}
+base_years <- 1930 + (10/k)*(yrs - 1)
+years <- base_years[base_years < 2030]
+
+spatial_data_list <- lapply(years, get_spatial_data, data = df)
+plot_list_actual <- lapply(seq_along(years), function(i) {
+  ggplot() +
+    geom_sf(data = australia_sf, fill = "grey", color = "black") +
+    geom_sf(data = spatial_data_list[[i]], color = "red", size = 0.5) +
+    theme_nothing()
+})
+```
+
+```{r, fig.height=7, fig.width=5}
+# All (ChatGPT, 2024)
+length_diff <- length(plot_list_model) - length(plot_list_actual)
+print(length_diff)
+if (length_diff >= 0) {
+  plot_list_actual <- append(plot_list_actual, rep(list(NULL), length_diff))
+} else {
+  plot_list_model <- append(plot_list_model, rep(list(NULL), -length_diff))
 }
 
-# Create an animation
-ani <- saveGIF({
-  for (i in 1:nlayers(tracker_brick)) {
-    plot_toads(i)
-    Sys.sleep(0.2)  # Adjust the sleep time as needed
-  }
-}, interval = 0.2, fps=10)
+combined_plots <- lapply(seq(4,length(plot_list_actual), 3), function(i) {
+  list(plot_list_actual[[i]], plot_list_model[[i]])
+})
 
-# View the animation
-ani
+# Replace NULLs with empty plots to maintain structure
+combined_plots <- lapply(combined_plots, function(p) {
+  lapply(p, function(x) if (is.null(x)) grid::nullGrob() else x)
+})
+
+# Arrange the plots in a grid layout
+row_labels <- base_years[seq(4,length(plot_list_actual), 3)]
+column_labels <- c("Actual", "Model")
+
+# Create text grobs for the labels
+
+
+row_label_grobs <- lapply(row_labels, function(label) {
+  textGrob(label, x = unit(0.5, "npc"), y = unit(0.5, "npc"), rot = 90, just = "center",
+           gp = gpar(fontsize = 14, fontface = "bold"))
+})
+
+column_label_grobs <- lapply(column_labels, function(label) {
+  textGrob(label, x = unit(0.5, "npc"), y = unit(0.5, "npc"), just = "center",
+           gp = gpar(fontsize = 14, fontface = "bold"))
+})
+
+
+# Combine the labels and plots into a grid
+model_plot <- grid.arrange(
+  grobs = c(
+    list(nullGrob(), column_label_grobs[[1]], column_label_grobs[[2]]), # Add column labels
+    do.call(c, lapply(1:length(combined_plots), function(i) {
+      list(row_label_grobs[[i]], combined_plots[[i]][[1]], combined_plots[[i]][[2]])
+    }))
+  ),
+  ncol = 3,
+  heights = unit.c(unit(1, "lines"), rep(unit(1, "null"), length(combined_plots))),
+  widths = unit.c(unit(1, "lines"), unit(1, "null"), unit(1, "null")),
+  padding = unit(5, "mm"),
+  background = rectGrob(gp = gpar(fill = "#B9DD8B", col = NA))
+)
 ```
 
-
-
+  top = textGrob("Model Results", gp = gpar(fontsize = 20, fontface = "bold")),
 
 ```{r}
-australia_df <- as.data.frame(rasterToPoints(australia_raster), xy = TRUE)
-names(australia_df) <- c("x", "y", "is_land")
-
-# Plot using ggplot
-ggplot() +
-  geom_raster(data=australia_df, aes(x = x, y = y, fill = factor(is_land))) +
-  geom_raster(data=plot, mapping=aes(x=x, y=y, fill = value)) +
-  theme_void()
+ggsave("model_plot2.png", plot = model_plot, width = 5, height = 10, dpi = 300)
 ```
 
-```{r}
-plot <- as.data.frame(trackers[[7]], xy = TRUE)
-names(plot)[3] <- 'value' 
-plot <- na.omit(plot)
-plot$value <- fct_rev(as.factor(plot$value))
-
-aus_outline <- fortify(rasterToPolygons(australia_raster, dissolve=TRUE))
-
-ggplot() +
-  coord_fixed() +
-  geom_polygon(mapping=aes(x = long, y = lat, group = group), data = aus_outline, fill='grey') +
-  viridis::scale_fill_viridis(discrete=TRUE, option='mako', direction=-1) +
-  geom_raster(plot, mapping = aes(x, y, fill = value)) 
-  theme_void()
-```
-  geom_path(aes(x = long, y = lat, group = group), data = aus_outline, 
-              size=1.5, col="black") +
               
 ```{r}
-rasterToPolygons(australia_raster, dissolve=TRUE)
+#writeRaster(tracker_brick, "processed_data/model_trackers2", filetype="GTiff", overwrite=TRUE)
 ```
-
-
-# Raw data
-
-[Explains how and where to get the exact raw data you got]
-[Is reproducible by a person (required) and a machine (ideally)]
-
-# Data wrangling
-
-[R chunks and prose which:]
-[Tidies up your raw data, outputs tidied_data.csv]
-[Cleans up your tidied data, outputs cleaned_data.csv]
-
-
-
-# Sanity checks
-
-[R chunks and prose which perform sanity checks on your cleaned data]
-[Remember that this really just summarises that your data are OK after you've cleaned them]
-[Most of the real sanity checks and data cleaning go on in the data_cleaning.Rmd file]
-
-# Addressing the questions/aims
-
-[This is the *main* section of your work. For example, if you are doing an EDA, this is where you would summarise it. If you are building something like a package or shiny app, a description of that package / app and demonstration of its function(s) would go here. Use appropriate sub-headings.]
 
 # References
 
