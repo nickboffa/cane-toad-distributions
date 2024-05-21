@@ -111,11 +111,23 @@ coordinates(sp_df) <- c("longitude", "latitude")
 
 
 ```{r}
-create_cell_df <- function(data, years_up_to=2024, res=0.5) {
+## Machine Learning
+
+### Create cell_df
+
+For the random forest to work, we divide Australia into a grid, count the number of occurrences in each cell, get the values of the predictor variables in each cell (in our case, the WorldClim layers), and then see if the model can predict where toads should be based on the predictors. Hence, we need a dataframe where each row is a gridcell, and the columns specify its location, the number of toads in it, and the predictors.
+
+Since we don't have the locations of where the toads aren't, we must guess (create 'pseudoabsences'). For this, we use the predictions of Kearney et. al (2008), which are in the breeding raster.
+
+```{r}
+create_cell_df <- function(data, env, years_up_to=2024) {
   data <- subset(data, year < years_up_to)
-  toad_counts <- rasterize(data, climate_stack, fun = "count", background=0)[["ID"]] # 1 per individual row? (Check later), backgroun = 0 means cells with nothing get 0
+
+  toad_counts <- rasterize(data, env, fun = "count", background=NA)[["ID"]]
+  toad_counts[breeding == 0] <- 0
   toad_count_df <- as.data.frame(toad_counts, xy = TRUE)
-  cell_df <- cbind(toad_count_df, as.data.frame(extract(climate_stack, toad_count_df[,1:2], method='bilinear'))) # adds lats and longs
+
+  cell_df <- cbind(toad_count_df, as.data.frame(extract(env, toad_count_df[,1:2], method='bilinear')))
   cell_df <- na.omit(cell_df)
   rownames(cell_df) <- NULL
   
@@ -124,122 +136,40 @@ create_cell_df <- function(data, years_up_to=2024, res=0.5) {
            latitude = "y",
            n_toads = "ID")
   
-  cell_df$ribbit <- cell_df$n_toads > 0
+  cell_df$any_toads <- cell_df$n_toads > 0
   
   return(cell_df)
 }
 ```
 
-
 ```{r}
-cell_df <- create_cell_df(sp_df, years_up_to=2024, res=0.5)
-head(cell_df)
+cell_df <- create_cell_df(sp_df, bioclim_stack, years_up_to=2000)
 ```
 
+### Create model
 
+(Soley-Guardia, Alvarado-Serrano, & Anderson, 2024)
+Since occurrence data is extremely biased by population density, we shall allow only a maximum of one observation per cell (Hazard 2). To further prevent overfitting to this bias, we limit the number of trees and maximum number of terminal nodes in each tree (Hazard 4). We also only consider mainland Australia (Hazard 6)
 
-Could remove data from clear outlier observations?
+Isothermality and Precipitation.of.Driest.Quarter have also been thought to biologically affect toad distribution (Urban 2008?).
 
-What about data before 2010?
+```{r, warning=F}
+rf_model <- randomForest(any_toads ~ Isothermality + Precipitation.of.Driest.Quarter, data=cell_df,
+                         ntree=100, maxnodes=50)
 
-## Actual toad counts data
+predictions <- predict(bioclim_stack, model = rf_model)
 
-```{r}
-ggplot(cell_df, aes(x=longitude, y=latitude, color=log10(n_toads))) +
-  geom_point(size=1.2) +
-  viridis::scale_color_viridis()
-```
-
-```{r}
-toad_counts <- rasterize(sp_df, climate_stack, fun = "count", background=0)[["ID"]] # 1 per individual row? (Check later), backgroun = 0 means cells with nothing get 0
-plot(log10(toad_counts))
-```
-
-```{r}
-plot(climate_stack)
-```
-
-# Machine learning
-
-
-```{r split-data}
-set.seed(12345)
-n <- nrow(cell_df)
-n_trains <- floor(0.7 * n)
-train_idxs <- sample(1:n, n_trains)  # Sample 70% of rows for training
-test_idxs <- setdiff(1:n, train_idxs)  # Use the remaining rows for testing
-
-# Create training and testing dataframes
-train <- cell_df[train_idxs, ]
-test <- cell_df[test_idxs, ]
-```
-
-## Regression
-
-```{r}
-create_model <- function(data) {randomForest(n_toads ~ mean_win_temp + rel_humidity + mean_win_rain + mean_sum_rain, data=data)}
-```
-
-```{r}
-rf_model1 <- randomForest(n_toads ~ mean_win_temp + rel_humidity + mean_win_rain + mean_sum_rain + breeding, data=train)
-
-predictions1 <- predict(climate_stack, model = rf_model1)
-
-# Visualize predictions
-plot(log10(predictions1))
-```
-
-
-## Binary
-
-```{r}
-rf_model2 <- randomForest(as.factor(!ribbit) ~ mean_win_rain + mean_win_temp + mean_sum_rain + rel_humidity + breeding, data = train) # makes it binary. For some reason need the !?
-
-# Might be to do with predicted2[,"TRUE"]
-
-predictions2 <- predict(climate_stack, model = rf_model2, type='prob')
-
-# Visualize predictions
-plot(predictions2)
-```
-
-```{r}
-rf_model3 <- randomForest(n_toads ~ mean_win_temp + rel_humidity + mean_win_rain + mean_sum_rain, 
-                          data=train, classwt = )
-
-predictions3 <- predict(climate_stack, model = rf_model3)
-
-# Visualize predictions
-plot(log10(predictions3))
-```
-predictions
-
-# Model evaluation
-
-```{r}
-confusion_mtx = table(test$toads,test$model_toads) 
+par(mfrow=c(1, 2))
+plot(predictions, main="Random Forest Model")
+plot(breeding, main="Mechanstic Model (Kearney 2009")
 ```
 
 ```{r}
 # Plotting model 
-plot(rf_model2) 
-  
-# Importance plot 
-importance(rf_model2) 
+plot(rf_model) 
   
 # Variable importance plot 
-varImpPlot(rf_model2) 
-```
-
-```{r}
-# Plotting model 
-plot(rf_model1) 
-  
-# Importance plot 
-importance(rf_model1) 
-  
-# Variable importance plot 
-varImpPlot(rf_model1) 
+varImpPlot(rf_model) 
 ```
 
 Model 2 is way better?
