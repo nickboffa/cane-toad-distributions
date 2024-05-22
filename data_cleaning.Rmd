@@ -24,21 +24,13 @@ knitr::opts_chunk$set(message = TRUE)
 
 Data can be downloaded by running 
 
+output_dir <- "raw_data/wc2.1_10m"
 bioclim_data <- geodata::worldclim_global(var = "bio", res = 10, path = output_dir)
 
 
-
 ```{r}
-# Specify the directory to save the downloaded files
-output_dir <- "raw_data/climate"
-
-# Download the 19 bioclimatic layers
-
 bio_files <- list.files("raw_data/climate/wc2.1_10m", full.names = TRUE)
-```
 
-
-```{r}
 bioclim_names <- c(
   "Annual Mean Temperature",            # bio1
   "Mean Diurnal Range",                 # bio2
@@ -96,33 +88,32 @@ mainland_australia <- australia_sf %>%
 # Convert the map to a Spatial object for masking
 australia_spatial <- as(mainland_australia, "Spatial")
 
+st_write(mainland_australia, "processed_data/mainland_australia.shp")
+```
+
+
+```{r}
 # Mask the bioclim_stack with the mainland Australia shapefile
 bioclim_stack_masked <- mask(bioclim_stack, australia_spatial)
-
-# Plot the result to verify
 plot(bioclim_stack_masked)
-
-writeRaster(bioclim_stack, "processed_data/bioclim_stack", filetype="GTiff", overwrite=TRUE)
+writeRaster(bioclim_stack_masked, "processed_data/bioclim_stack", filetype="GTiff", overwrite=TRUE) 
 ```
+
+
 
 
 # Get Image Raster Data
 
-
-
 ```{r}
-bioclim_stack <- stack("processed_data/bioclim_stack.grd")
 src_image <- "raw_data/breeding.png"
 dst_image <- "processed_data/georef_breeding_image.tif"
 
 image_raster <- rast(src_image) # have to use terra for image processing
 ext(image_raster) <- base_extent
-res(image_raster) <- res(bioclim_stack)
-crs(image_raster) <- "EPSG:4326"
+crs(image_raster) <- "WGS84"
 
 writeRaster(image_raster, dst_image, filetype="GTiff", overwrite=TRUE)
 ```
-
 
 
 ```{r}
@@ -130,7 +121,7 @@ image_raster <- rast(dst_image)
 plot(image_raster)
 ```
 
-Remove text from image using bullshit
+Remove text from image using whatever works
 
 ```{r}
 # Extract the RGB channels
@@ -171,6 +162,7 @@ plot(breeding_corrected == 0)
 
 And so we fill them in
 
+
 ```{r}
 fill_cells <- function(x) {
   if (is.na(x[5])) {
@@ -195,10 +187,20 @@ plot(filled_raster, main="Filled Raster")
 plot(filled_raster == 0)
 ```
 
+```{r}
+final <- resample(filled_raster, bioclim_stack[[1]]) > 0.9
+```
+
+```{r}
+plot(final)
+```
+
+
+
 Not perfect, but pretty good
 
 ```{r}
-raster::writeRaster(breeding_corrected, "processed_data/breeding.grd", overwrite=TRUE)
+raster::writeRaster(final, "processed_data/breeding.grd", overwrite=TRUE)
 ```
 # Create australia_raster for ABM
 
@@ -213,7 +215,7 @@ agg_factor <- degree_per_cell / res(bioclim_stack[[1]])
 mainland <- mask(bioclim_stack[["Isothermality"]], australia_spatial)
 mainland_agg <- aggregate(mainland, fact = agg_factor)
 
-australia_raster <- !is.na(mainland_agg)
+#australia_raster <- !is.na(mainland_agg)
 plot(australia_raster)
 ```
 
@@ -377,9 +379,22 @@ excluded_df
 
 
 
+
+#### Not removing spatio-temporally inaccurate data
+
+As we will find in the main project, some observations appear to be in the correct kind of place, but at the wrong time. For example, there are observations from 01-01-1900 in Brisbane that must be wrong, because Cane Toads first arrived in Australia in 1935. 
+
+```{r}
+head(df, 3)
+```
+
+Whilst we could remove these, for the purposes of training our model (which doesn't use the date) they are fine, since they are still in the correct location. Additionally, no spatio-temporal errors appear to be in WA, which is where we most don't want them (since then they might be included in the data for before 2000, defeating the purpose of limiting the data in such a way).
+
+To see what I'm talking about, see the final 'model_plot' from the final_project, that compares the model's output to reality.
+
+
+
 #### Summary
-
-
 
 ```{r}
 unique_points <- anti_join(tidy_df, clean, by = c("id", "longitude", "latitude"))
