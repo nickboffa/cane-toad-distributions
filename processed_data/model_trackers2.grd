@@ -1,0 +1,26 @@
+[general]
+creator=R package 'raster'
+created=2024-05-22 08:36:36
+[data]
+datatype=FLT4S
+byteorder=little
+nbands=100
+bandorder=BIL
+minvalue=0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0
+maxvalue=2:2:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4:4
+nodatavalue=-3.4e+38
+[legend]
+legendtype=
+values=
+color=
+[description]
+layername=layer.1:layer.2:layer.3:layer.4:layer.5:layer.6:layer.7:layer.8:layer.9:layer.10:layer.11:layer.12:layer.13:layer.14:layer.15:layer.16:layer.17:layer.18:layer.19:layer.20:layer.21:layer.22:layer.23:layer.24:layer.25:layer.26:layer.27:layer.28:layer.29:layer.30:layer.31:layer.32:layer.33:layer.34:layer.35:layer.36:layer.37:layer.38:layer.39:layer.40:layer.41:layer.42:layer.43:layer.44:layer.45:layer.46:layer.47:layer.48:layer.49:layer.50:layer.51:layer.52:layer.53:layer.54:layer.55:layer.56:layer.57:layer.58:layer.59:layer.60:layer.61:layer.62:layer.63:layer.64:layer.65:layer.66:layer.67:layer.68:layer.69:layer.70:layer.71:layer.72:layer.73:layer.74:layer.75:layer.76:layer.77:layer.78:layer.79:layer.80:layer.81:layer.82:layer.83:layer.84:layer.85:layer.86:layer.87:layer.88:layer.89:layer.90:layer.91:layer.92:layer.93:layer.94:layer.95:layer.96:layer.97:layer.98:layer.99:layer.100
+[georeference]
+nrows=102
+ncols=123
+xmin=113
+ymin=-44
+xmax=154
+ymax=-10
+projection=
+wkt=

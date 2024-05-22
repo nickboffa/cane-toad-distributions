@@ -255,13 +255,13 @@ last_id<-1
 
 sum_fixed_cells<-fixed_cells
 n_cells_in_map<-cellStats(australia_raster, 'sum')
-ticks <- 1:148
+ticks<-1:148
 ```
 
-If below is unnamed-chunk-24, then it's cached
+add eval=FALSE if doesn't run. Then 
 
 
-```{r run-model, cache=TRUE}
+```{r run-model, eval=FALSE}
 for (tick in ticks) {
   moving_toads<-Filter(function(toad) {
                             return(fixed_cells[toad$pos] != 1 & sum_fixed_cells[toad$pos] < min_perm_fix)
@@ -296,7 +296,8 @@ plot(tracker)
 ## Plot Results
 
 ```{r}
-plot(sum_fixed_cells > 10)
+tracker_brick<-brick(trackers[!sapply(trackers, is.null)]) # if model is actually run
+tracker_brick<-brick("processed_data/model_trackers2.grd") # past output from model
 ```
 
 
