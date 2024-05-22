@@ -99,22 +99,70 @@ plot(bioclim_stack)
 
 
 
-## Atlas of Living Australia
 
-The dataset comprises occurrence records of cane toads (*Rhinella marina*), downloaded from the Atlas of Living Australia (ALA). It includes geographical coordinates indicating the presence of cane toads across various regions in Australia. The ALA is a nationally recognised data repository that collates biodiversity data from multiple sources (such as from iNaturalist), facilitating research and conservation efforts. This dataset is crucial for understanding the distribution and spread of cane toads, an invasive species with significant ecological impacts. For more info see Belbin et al. (2021).
+# Sanity checks
 
-Because the galah package blocked me, occurrence data for the cane toads was obtained by pressing 'download' in this webpage https://biocache.ala.org.au/occurrences/search?q=lsid:https://biodiversity.org.au/afd/taxa/5c8e5d04-49dd-43ec-b9e0-f4e55ee82407#tab_recordsView
+Checking if dataframe values seem right:
 
 ```{r}
-df <- read_csv("processed_data/clean_toads.csv")
-
-# create spatial dataframe
-sp_df <- df
-coordinates(sp_df) <- c("longitude", "latitude")
+skim(df)
 ```
 
+Checking where toad observations are (dark grey is the breeding raster)
 
 ```{r}
+ggplot(df) +
+  geom_sf(data=australia_sf, fill = 'lightgrey', color = "black", linewidth=1) +
+  geom_raster(data=filter(as.data.frame(rasterToPoints(breeding)), layer == 1), aes(x=x, y=y), fill = "darkgrey", alpha=0.5) +
+  geom_hex(aes(x=longitude, y=latitude), bins=50) +
+  scale_fill_viridis(trans = "log10", option='inferno') +
+  theme_nothing() +
+  theme(legend.position = 'right') +
+  labs(fill='Number of toads')
+```
+
+Checking that input WorldClim layers and manipulated breeding raster look correct.
+
+```{r}
+# All ChatGPT, 2024
+rasters<-list(
+  "Habitable?"=breeding,
+  "Isothermality"=bioclim_stack[["Isothermality"]],
+  "Rainfall in Driest Quarter (mm)"=bioclim_stack[["Precipitation.of.Driest.Quarter"]]
+)
+
+# Function to create a plot for a given raster
+create_raster_plot<-function(raster_data, title) {
+  raster_df<-as.data.frame(rasterToPoints(raster_data))
+  colnames(raster_df) <- c("x", "y", "value")
+  ggplot() +
+  geom_sf(data=australia_sf, fill = 'lightgrey', color = "black", linewidth=0) +
+  geom_raster(data=raster_df, aes(x=x, y=y, fill=value)) +
+  scale_fill_viridis_c(option = 'inferno', name=title) +
+  theme_void() +
+  theme(
+    legend.position = 'top',
+    legend.title=element_text(size=12, face = "bold"),
+    legend.text=element_text(size=12),
+    legend.title.position = 'top',
+    legend.justification = "center"
+  ) +
+  guides(fill=guide_colorbar(barwidth=unit(3, "cm"), barheight=unit(0.5, "cm")))
+}
+
+# Create plots for each raster
+raster_plots<-lapply(names(rasters), function(name) {
+  create_raster_plot(rasters[[name]], name)
+})
+
+input_plot<-plot_grid(plotlist=raster_plots, ncol=3)
+input_plot
+```
+
+Everything seems fine.
+
+# Addressing the questions/aims
+
 ## Machine Learning
 
 ### Create cell_df
