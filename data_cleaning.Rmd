@@ -227,36 +227,69 @@ writeRaster(australia_raster, "processed_data/australia_raster", filetype="GTiff
 
 Downloaded by ALA, with default settings on (e.g. spatially suspect records were excluded)
 ```{r}
-toads <- read_csv("raw_data/occurrence/rhinella-marina-occurence.csv")
+toads <- read_csv("raw_data/rhinella-marina-occurence.csv")
 ```
 Could geo-reference the missing coordinate observations using the 'locality' column
 
+
+
+
+
+
+## Data Tidying 
+
+This data is already tidy. However, we will take this opportunity to remove most of the columns in toads, and also give each row a unique identifier
+
 ```{r}
-length(toads[!(!is.na(toads$decimalLatitude) & !is.na(toads$decimalLongitude)),])
+head(tidy_df)
 ```
 
-
-## Clean Data
-
-### Remove rows with NA locations
-
-country == "Australia" & 
 ```{r}
-clean <- toads |> 
-  filter(!is.na(decimalLatitude) & !is.na(decimalLongitude))
+tidy_df <- toads |> 
+  dplyr::select(eventDate, year, stateProvince, locality, decimalLongitude, decimalLatitude,) |> 
+  arrange(eventDate)
+
+tidy_df$id <- 1:nrow(tidy_df)
+
+tidy_df <- tidy_df |> 
+  rename(longitude = decimalLongitude,
+         latitude = decimalLatitude)
+
+head(tidy_df)
+
+write_csv(tidy_df, "processed_data/tidied_data.csv")
+```
+
+## Make Excluded Data File
+
+
+### Data Cleaning
+#### Remove rows with NA locations
+
+
+```{r}
+clean <- tidy_df |> 
+  filter(!is.na(latitude) & !is.na(longitude))
 clean
 ```
 
+
 ```{r}
-georef <- subset(clean, (is.na(decimalLongitude) | is.na(decimalLatitude)) & ! is.na(locality) ) |> 
-  dplyr::select(rightsHolder, stateProvince, locality, eventDate)
-georef
+excluded_part <- anti_join(tidy_df, clean, by = c("id", "longitude", "latitude"))
+excluded_part$reason <- rep("Undefined longitude or latitude", nrow(excluded_part))
+excluded_df <- excluded_part
+excluded_df
 ```
 
-So there are only 73 rows that could be georeferenced. According to https://docs.gbif.org/georeferencing-best-practices/1.0/en/ however, it is better to not georeference at all than georeference poorly. Given this data is so old
+
+We could theoretically georeference these locations, but we have so many records that this isn't worth the effort. There are only 73 rows that could be georeferenced anyway, and according to https://docs.gbif.org/georeferencing-best-practices/1.0/en/ however, it is better to not georeference at all than georeference poorly.
 
 
-## Remove observations that aren't in mainland Australia
+#### Remove observations that aren't in mainland Australia
+
+```{r}
+before_removal <- clean
+```
 
 ```{r}
 r <- mainland
@@ -286,7 +319,7 @@ plot(padded_mainland)
 
 ```{r}
 sp_clean <- clean
-coordinates(sp_clean) <- c("decimalLongitude", "decimalLatitude")
+coordinates(sp_clean) <- c("longitude", "latitude")
 is_land <- raster::extract(padded_mainland, sp_clean)
 
 # Filter rows in the spatial data frame based on the raster values
@@ -294,19 +327,28 @@ clean <- clean[which(is_land > 0),]
 ```
 
 
-REMOVED clean[which(is_land != 1),] ROWS
+```{r}
+excluded_part <- anti_join(before_removal, clean, by = c("id", "longitude", "latitude"))
+excluded_part$reason <- rep("Not in mainland Australia", nrow(excluded_part))
+excluded_df <- rbind(excluded_df, excluded_part)
+```
 
 
-### Remove rows that aren't in the main cluster
+
+#### Remove rows that aren't in the main cluster
 
 ```{r}
-clusters <- dbscan(clean[, c("decimalLongitude", "decimalLatitude")], eps = 2.5, minPts = 3) # arguments heavily affect result
+before_removal <- clean
+```
+
+```{r}
+clusters <- dbscan(clean[, c("longitude", "latitude")], eps = 2.5, minPts = 3) # arguments heavily affect result
 
 # Add cluster IDs to your data frame
 clean$cluster <- clusters$cluster
 
 # Create a ggplot of the clusters
-ggplot(clean[, c("decimalLongitude", "decimalLatitude", "cluster")], aes(x = decimalLongitude, y = decimalLatitude, color = as.factor(cluster))) +
+ggplot(clean[, c("longitude", "latitude", "cluster")], aes(x = longitude, y = latitude, color = as.factor(cluster))) +
   geom_point(aes(size = 3), alpha = 0.6) +
   labs(title = "DBSCAN Clustering of Geographical Data", x = "Longitude", y = "Latitude") +
   theme_minimal() +
@@ -323,37 +365,53 @@ clean <- clean |>
   filter(cluster %in% large_clusters)
 ```
 
-
-### Summary
-
+```{r}
+excluded_part <- anti_join(before_removal, clean, by = c("id", "longitude", "latitude"))
+excluded_part$reason <- rep("In mainland Australia, but not in known cane toad habitat", nrow(excluded_part))
+excluded_df <- rbind(excluded_df, excluded_part)
+```
 
 ```{r}
-unique_points <- anti_join(toads, clean, by = c("decimalLongitude", "decimalLatitude"))
-
-# Plot the data
-ggplot() +
-  geom_point(data = toads, aes(x = decimalLongitude, y = decimalLatitude), color = "black") +
-  geom_point(data = unique_points, aes(x = decimalLongitude, y = decimalLatitude), color = "red") +
-  xlim(100, 160) +
-  ylim(-40, -5)
+excluded_df
 ```
 
 
 
-## Select useful columns and write to file
+#### Summary
 
-Now create main dataframe
+
+
 ```{r}
-df <- clean |> 
-  dplyr::select(eventDate, year, stateProvince, locality, decimalLongitude, decimalLatitude,) |> 
-  arrange(eventDate)
-df <- df |> 
-  rename(longitude = decimalLongitude,
-         latitude = decimalLatitude)
+unique_points <- anti_join(tidy_df, clean, by = c("id", "longitude", "latitude"))
 
-head(df)
+ggplot() +
+  geom_point(data = toads, aes(x = decimalLongitude, y = decimalLatitude), color = "black") +
+  geom_point(data = unique_points, aes(x = longitude, y = latitude), color = "red")
+```
 
-write_csv(df, "processed_data/clean_toads.csv")
+And zooming in just on Australia:
+
+```{r}
+ggplot() +
+  geom_point(data = toads, aes(x = decimalLongitude, y = decimalLatitude), color = "black") +
+  geom_point(data = unique_points, aes(x = longitude, y = latitude), color = "red") +
+  xlim(100, 160) +
+  ylim(-40, -5)
+```
+
+```{r}
+write_csv(excluded_df, "processed_data/excluded_data.csv")
+```
+
+
+## Data Exclusion
+
+
+```{r}
+cleaned_df <- anti_join(tidy_df, excluded_df, by = "id")
+
+write_csv(cleaned_df, "processed_data/cleaned_data.csv")
+
 ```
 
 
