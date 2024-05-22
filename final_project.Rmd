@@ -402,4 +402,29 @@ ggsave("model_plot2.png", plot = model_plot, width = 5, height = 10, dpi = 300)
 
 # References
 
-[References you have cited throughout your text]
+Belbin, L., Wallis, E., Hobern, D., & Zerger, A. (2021). The Atlas of Living Australia: History, current state and future directions. Biodiversity Data Journal 9: e65023. https://doi.org/10.3897/BDJ.9.e65023
+
+ChatGPT. (2024). Plotting Help. Open AI.
+https://chatgpt.com/share/2ea40add-755a-4f41-ae1e-08afb1e72de6
+
+Elith, J., Kearney, M., & Phillips, S. (2010). The art of modelling range-shifting species. Methods in Ecology and Evolution, 1(4), 330-342. https://doi.org/10.1111/j.2041-210X.2010.00036.x 
+
+Fick, S. E., & Hijmans, R. J. (2017). WorldClim 2: new 1-km spatial resolution climate surfaces for global land areas. International Journal of Climatology, 37(12), 4302-4315. https://doi.org/10.1002/joc.5086 
+https://rmets.onlinelibrary.wiley.com/doi/full/10.1002/joc.5086
+
+Kearney, M., Phillips, B. I., Tracy, C. R., Christian, K. A., Betts, G., & Porter, W. P. (2008). Modelling species distributions without using species distributions: the cane toad in Australia under current and future climates. – Ecography 31: 423–434.
+
+Urban, M. C., Phillips, B. L., Skelly, D. K., & Shine, R. (2007). The cane toad's (Chaunus [Bufo] marinus) increasing ability to invade Australia is revealed by a dynamically updated range model. Proceedings of the Royal Society B: Biological Sciences, 274(1616), 1413-1419. https://doi.org/10.1098/rspb.2007.0114
+
+O'Donnell, M. S., & Ignizio, D. A. (2012). Bioclimatic predictors for supporting ecological applications in the conterminous United States (U.S. Geological Survey Data Series 691). U.S. Geological Survey.
+https://pubs.usgs.gov/ds/691/ds691.pdf
+
+Soley-Guardia, M., Alvarado-Serrano, D. F., & Anderson, R. P. (2024). Top ten hazards to avoid when modeling species distributions: A didactic guide of assumptions, problems, and recommendations. Ecography, 2024(4). https://doi.org/10.1111/ecog.06852
+
+
+
+
+
+
+
+
