@@ -58,47 +58,71 @@ To use environmental data, together with outputs from mechanistic models, to try
 
 ## Justification
 
-Many attempts have been made to model the environmental niche of cane toads, but their range-shifting nature has made this difficult (Elith et. al, 2010). The traditional method is the 'correlative' approach: using a set of environmental predictor variables, together with some algorithm (e.g. GAM), to predict the fundamental niche of a species - such as in Urban et. al (2008). However, particularly, with cane toads such models tend to be inaccurate, as they have not reached equilibrium with their fundamental niche (Elith et. al, 2010). 
+Many attempts have been made to model the environmental niche of cane toads, but their range-shifting nature has made this difficult (Elith et. al, 2010). The traditional method is the 'correlative' approach: using a set of environmental predictor variables, together with some algorithm (e.g. GAM), to predict the fundamental niche of a species - such as in Urban et. al (2008). However, particularly, with cane toads such models tend to be inaccurate as they have not reached equilibrium with their fundamental niche (Elith et. al, 2010). 
 
-Kearney et. al (2008) resolved this issue by only using the physiology of cane toads to predict their fundamental niche (the 'mechanistic' approach), and found that access to breeding sites was the primary thing limiting the toads invasion inland. But this approach can only model finite biological mechanisms, and so may miss key aspects determining the toad's fundamental niche.
+Kearney et. al (2008) resolved this issue by only using the physiology of cane toads to predict their fundamental niche (the 'mechanistic' approach), and found that access to breeding sites was the primary limiter to the toads invasion inland. But this approach can only model finite biological mechanisms, and so may miss key aspects determining the toad's fundamental niche.
 
-At the recommendation of Kearney et. al (2008) and as implemented by Elith et. al (2010), we will thus use this mechanistic output, that tells where the cane toads should be theoretically able to live, to define the pseudoabsence points that then inform our correlative model; we shall also incorporate the recent recommendations of Soley-Guardia, Alvarado-Serrano, & Anderson (2024). That said, we will ignore artificial water sources.
+At the recommendation of Kearney et. al (2008) and as implemented by Elith et. al (2010), we will thus use this mechanistic output, that tells where the cane toads should be theoretically able to live, to define the pseudoabsence points that then inform our correlative model; we shall also incorporate the recent recommendations of Soley-Guardia et. al (2024).
 
 The key difference in this report to the primary literature is the use of an ABM. By introducing a temporal component to the model, we can predict not just where the toad's will end up, but when they will arrive there. We shall only use occurrence data up to the year 2000, so that we may validate our model with present-day data.
 
 # Raw data description
 
-## WorldClim 2.1 (Fick & Hijmans, 2017)
+## Atlas of Living Australia
 
-In this report we use 2 of the 19 bioclimatic variables available in WorldClim 2.1, at a resolution of 10 minutes. These variables are raster surfaces for the entire globe, where the values are the average from 1970-2000. The two we use are:
+The dataset comprises occurrence records (with coordinates) of cane toads in Australia (*Rhinella marina*), downloaded from the Atlas of Living Australia (ALA). ALA is a nationally recognised data repository that collates biodiversity data from multiple sources. For more information see Belbin et al. (2021).
 
-$$ \text{Isothermality} = 100 \cdot \frac{\text{Average difference between maximum temp and minimum temp in a month}}{\text{Annual temperature range}}$$
+The raw data was obtained by pressing 'download' in this webpage: 
+  https://biocache.ala.org.au/occurrences/search?q=lsid:https://biodiversity.org.au/afd/taxa/5c8e5d04-49dd-43ec-b9e0-f4e55ee82407#tab_recordsView
 
-$$ \text{Precipitation of Driest Quarter} = \text{Total precipitation (in millimetres) that fell in driest 3 months of year} $$
+```{r}
+df<-read_csv("processed_data/cleaned_data.csv")
+sp_df<-df
+coordinates(sp_df)<-c("longitude", "latitude")
+```
 
-To download all 19, run the following code:
-  geodata::worldclim_global(var = "bio", res = 10, path = "where/you/want/the/folder/to/be")
+## WorldClim 2.1
+
+In this report we use 2 of the 19 bioclimatic variables available in WorldClim 2.1 (Fick & Hijmans, 2017) at a resolution of 10 minutes, downloaded by running in R:
+
+  geodata::worldclim_global(var="bio", res=10, path="where/you/want/the/folder/to/be")
+
+These variables are raster surfaces for the entire globe, where the values are the average from 1970-2000. For variable descriptions, see O'Donnell & Ignizio (2012). The two we use are
+
+$$\text{Isothermality}=100\cdot\frac{\text{Average difference between maximum temp and minimum temp in a month}}{\text{Annual temperature range}}$$
+
+$$\text{Precipitation of Driest Quarter (PDQ)}=\text{Total precipitation (mm) that fell in driest 3 months of year}$$
   
-Isothermality is then "wc2.1_10m_bio_2.tif", and PDQ is "wc2.1_10m_bio_17.tif". Running raster::raster() on the respective filename will load the data into R.
 
 ```{r}
-bioclim_stack <- stack("processed_data/bioclim_stack.grd") # automatically includes .gri file as well
+bioclim_stack<-stack("processed_data/bioclim_stack.grd")
 ```
 
-## Breeding Figure (supplementary material of...)
+## Breeding Figure
 
-Kearney et. al (2008) used the biology of cane toads to predict where they would be able to survive. We will be using their results to inform our model, but unfortunately their data is not available online. We took a screenshot of Figure S1 from their paper (supplementary is https://www.ecography.org/sites/ecography.org/files/appendix/e5457.pdf), bounded by the northernmost, easternmost, westernmost points of Australia, and the southernmost point of Tasmania. We then converted this to a raster.
-
-```{r}
-breeding <- raster("processed_data/breeding.grd")
-```
+Kearney et. al (2008) used the biology of cane toads to predict where they would be able to survive. We will use their results to inform our model. We took a screenshot of Figure S1 from their supplementary material, bounded by the northernmost, easternmost, westernmost points of Australia, and the southernmost point of Tasmania. We then converted this to a raster (henceforth "breeding raster").
 
 ```{r}
-plot(bioclim_stack)
+breeding<-resample(raster("processed_data/breeding.grd"), bioclim_stack[[1]]) > 0
 ```
 
 
+## Australia outline
 
+Outline was downloaded using geodata::gadm(country = "AUS", level=0, path=tempdir()), then mainland outline extracted.
+
+```{r}
+australia_sf<-st_read("processed_data/mainland_australia.shp")
+australia_spatial<-as(australia_sf, "Spatial")
+```
+
+For the ABM, we'll use the outline of the actual grid:
+```{r}
+australia_raster<-raster("processed_data/australia_raster.grd")
+australia_polygons<-rasterToPolygons(australia_raster, fun=function(x) x == 1, dissolve=TRUE)
+abm_sf<-st_as_sf(australia_polygons)
+st_crs(abm_sf)<-4326
+```
 
 # Sanity checks
 
@@ -128,10 +152,9 @@ Checking that input WorldClim layers and manipulated breeding raster look correc
 rasters<-list(
   "Habitable?"=breeding,
   "Isothermality"=bioclim_stack[["Isothermality"]],
-  "Rainfall in Driest Quarter (mm)"=bioclim_stack[["Precipitation.of.Driest.Quarter"]]
+  "PDQ (mm)"=bioclim_stack[["Precipitation.of.Driest.Quarter"]]
 )
 
-# Function to create a plot for a given raster
 create_raster_plot<-function(raster_data, title) {
   raster_df<-as.data.frame(rasterToPoints(raster_data))
   colnames(raster_df) <- c("x", "y", "value")
@@ -150,7 +173,7 @@ create_raster_plot<-function(raster_data, title) {
   guides(fill=guide_colorbar(barwidth=unit(3, "cm"), barheight=unit(0.5, "cm")))
 }
 
-# Create plots for each raster
+
 raster_plots<-lapply(names(rasters), function(name) {
   create_raster_plot(rasters[[name]], name)
 })
