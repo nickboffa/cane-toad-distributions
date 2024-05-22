@@ -392,8 +392,6 @@ Whilst we could remove these, for the purposes of training our model (which does
 
 To see what I'm talking about, see the final 'model_plot' from the final_project, that compares the model's output to reality.
 
-
-
 #### Summary
 
 ```{r}
@@ -413,6 +411,8 @@ ggplot() +
   xlim(100, 160) +
   ylim(-40, -5)
 ```
+
+This seems legitimate based off of distributions in the Urban et al. paper.
 
 ```{r}
 write_csv(excluded_df, "processed_data/excluded_data.csv")
