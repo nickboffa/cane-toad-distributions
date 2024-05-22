@@ -41,7 +41,7 @@ source("ABM.R")
 
 # Word/figure count
 
-Words: 1986
+Words: 1988
 Figures:6
 
 # Location on GitHub
@@ -364,7 +364,8 @@ tracker_brick<-brick("processed_data/model_trackers2.grd") #past output from mod
 ### Plot Results
 
 ```{r, fig.height=7, fig.width=5}
-# Plot model data
+#ChatGPT, 2024
+# Plot model data 
 base_plot<-ggplot()+geom_sf(data=abm_sf, fill="grey", color="grey")+theme_nothing()
 yrs<-seq(1, nlayers(tracker_brick), by=7)
 plot_list_model<-lapply(yrs, function(i) {
