@@ -14,36 +14,7 @@ output:
         fig_height: 4
 ---
 
-# Word/figure count
-
-Words: 2335
-Figures:
-
-# Location on GitHub
-
-https://github.com/nickboffa/DS4B-final-report
-
-# Project Outline
-
-## Aim
-
-To use environmental data, together with outputs from mechanistic models, to try to replicate (and then predict) the colonisation of Australia by cane toads using an agent-based model (ABM).
-
-## Justification
-
-Many attempts have been made to model the environmental niche of cane toads, but their range-shifting nature has made this difficult (Kearney 2010). The traditional method is the 'correlative' approach: using a set of environmental predictor variables, together with some algorithm (e.g. GAM), to predict the fundamental niche of a species - such as in Urban et. al (2008). However, particularly, with cane toads such models tend to be inaccurate, as they have not reached equilibrium with their fundamental niche (Kearney 2010). 
-
-Kearney et. al (2008) resolved this issue by only using the physiology of cane toads to predict their fundamental niche (the 'mechanistic' approach), and found that access to breeding sites was the primary thing limiting the toads invasion inland. But this approach can only model finite biological mechanisms, and so may miss key aspects determining the toad's fundamental niche.
-
-At the recommendation of Kearney 2008 and 2010, we will thus use this mechanistic output, that tells where the cane toads should be theoretically able to live, to define the pseudoabsence points that then inform our correlative model - this was done by Kearney 2010; however, we shall also incorporate the recent recommendations of Soley-Guardia, Alvarado-Serrano, & Anderson (2024), which earlier models have failed to incorporate (?). That said, we will ignore artificial water sources.
-
-The key difference in this report to the primary literature is the use of an ABM. By introducing a temporal component to the model, we can predict not just where the toad's will end up, but when they will arrive there. We shall only use occurrence data up to the year 2000, so that we may validate our model with present-day data.
-
-And clearly it's a good aim, because it turns out there's even an open project at Monash regarding it (https://supervisorconnect.it.monash.edu/projects/research/integrating-novel-technologies-and-modelling-tools-predict-species-responses)
-
-
-
-# Beginning
+# Load Libraries and set.seed()
 
 ```{r}
 set.seed(8723)
@@ -59,8 +30,41 @@ library(viridis)
 library(cowplot)
 library(skimr)
 library(grid)
+library(knitr)
+source("ABM.R")
 ```
 
+```{r, include=FALSE}
+knitr::opts_chunk$set(
+  warning=FALSE,
+  message=FALSE
+)
+```
+
+# Word/figure count
+
+Words: 1986
+Figures:
+
+# Location on GitHub
+
+https://github.com/nickboffa/DS4B-final-report
+
+# Project Outline
+
+## Aim
+
+To use environmental data, together with outputs from mechanistic models, to try to replicate (and then predict) the colonisation of Australia by cane toads using an agent-based model (ABM).
+
+## Justification
+
+Many attempts have been made to model the environmental niche of cane toads, but their range-shifting nature has made this difficult (Elith et. al, 2010). The traditional method is the 'correlative' approach: using a set of environmental predictor variables, together with some algorithm (e.g. GAM), to predict the fundamental niche of a species - such as in Urban et. al (2008). However, particularly, with cane toads such models tend to be inaccurate, as they have not reached equilibrium with their fundamental niche (Elith et. al, 2010). 
+
+Kearney et. al (2008) resolved this issue by only using the physiology of cane toads to predict their fundamental niche (the 'mechanistic' approach), and found that access to breeding sites was the primary thing limiting the toads invasion inland. But this approach can only model finite biological mechanisms, and so may miss key aspects determining the toad's fundamental niche.
+
+At the recommendation of Kearney et. al (2008) and as implemented by Elith et. al (2010), we will thus use this mechanistic output, that tells where the cane toads should be theoretically able to live, to define the pseudoabsence points that then inform our correlative model; we shall also incorporate the recent recommendations of Soley-Guardia, Alvarado-Serrano, & Anderson (2024). That said, we will ignore artificial water sources.
+
+The key difference in this report to the primary literature is the use of an ABM. By introducing a temporal component to the model, we can predict not just where the toad's will end up, but when they will arrive there. We shall only use occurrence data up to the year 2000, so that we may validate our model with present-day data.
 
 # Raw data description
 
