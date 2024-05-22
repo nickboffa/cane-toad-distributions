@@ -1,7 +1,7 @@
 ---
-title: "A title for your project"
-author: "Your name and U number"
-date: "Today's date"
+title: "Predicting Cane Toad Expansion in Australia"
+author: "Nicholas Boffa u7686660"
+date: "22/04/2024"
 output:  
     html_document:
         toc: true
@@ -15,6 +15,10 @@ output:
 ---
 
 # Load Libraries and set.seed()
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE,message=FALSE)
+```
 
 ```{r}
 set.seed(8723)
