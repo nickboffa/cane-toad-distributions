@@ -152,7 +152,7 @@ ggplot(df) +
 Checking that input WorldClim layers and manipulated breeding raster look correct.
 
 ```{r}
-# All ChatGPT, 2024
+# ChatGPT, 2024
 rasters<-list(
   "Habitable?"=breeding,
   "Isothermality"=bioclim_stack[["Isothermality"]],
@@ -194,63 +194,61 @@ Everything seems fine.
 
 ### Create cell_df
 
-For the random forest to work, we divide Australia into a grid, count the number of occurrences in each cell, get the values of the predictor variables in each cell (in our case, the WorldClim layers), and then see if the model can predict where toads should be based on the predictors. Hence, we need a dataframe where each row is a gridcell, and the columns specify its location, the number of toads in it, and the predictors.
+For the random forest to work, we divide Australia into a grid, count the number of occurrences in each cell, get the values of the predictor variables in each cell, and then see if the model can predict where toads should be based on the predictors. Hence, we need a dataframe where each row is a gridcell, and the columns specify its location, the number of toads in it, and the predictors (WorldClim layers).
 
 Since we don't have the locations of where the toads aren't, we must guess (create 'pseudoabsences'). For this, we use the predictions of Kearney et. al (2008), which are in the breeding raster.
 
 ```{r}
-create_cell_df <- function(data, env, years_up_to=2024) {
-  data <- subset(data, year < years_up_to)
+create_cell_df<-function(data, env, years_up_to=2024) {
+  data<-subset(data, year < years_up_to)
 
-  toad_counts <- rasterize(data, env, fun = "count", background=NA)[["ID"]]
-  toad_counts[breeding == 0] <- 0
-  toad_count_df <- as.data.frame(toad_counts, xy = TRUE)
+  toad_counts<-rasterize(data, env, fun="count", background=NA)[["ID"]]
+  toad_counts[breeding == 0]<-0
+  toad_count_df<-as.data.frame(toad_counts, xy=TRUE)
 
-  cell_df <- cbind(toad_count_df, as.data.frame(extract(env, toad_count_df[,1:2], method='bilinear')))
-  cell_df <- na.omit(cell_df)
-  rownames(cell_df) <- NULL
+  cell_df<-cbind(toad_count_df, as.data.frame(extract(env, toad_count_df[,1:2], method='bilinear')))
+  cell_df<-na.omit(cell_df)
+  rownames(cell_df)<-NULL
   
-  cell_df <- cell_df |> 
-    rename(longitude = "x",
-           latitude = "y",
-           n_toads = "ID")
+  cell_df<-cell_df |> 
+    rename(longitude="x",
+           latitude="y",
+           n_toads="ID")
   
-  cell_df$any_toads <- cell_df$n_toads > 0
+  cell_df$any_toads<-cell_df$n_toads > 0
   
   return(cell_df)
 }
 ```
 
 ```{r}
-cell_df <- create_cell_df(sp_df, bioclim_stack, years_up_to=2000)
+cell_df<-create_cell_df(sp_df, bioclim_stack, years_up_to=2000)
 ```
 
 ### Create model
 
-(Soley-Guardia, Alvarado-Serrano, & Anderson, 2024)
-Since occurrence data is extremely biased by population density, we shall allow only a maximum of one observation per cell (Hazard 2). To further prevent overfitting to this bias, we limit the number of trees and maximum number of terminal nodes in each tree (Hazard 4). We also only consider mainland Australia (Hazard 6)
+Since occurrence data is extremely biased by population density, we shall allow only a maximum of one observation per cell (avoiding Hazard 2 in Soley-Guardia et. al (2024)). To further prevent overfitting to this bias, we limit the number of trees and maximum number of terminal nodes in each tree (avoiding Hazard 4). We also only consider mainland Australia (avoiding Hazard 6).
 
-Isothermality and Precipitation.of.Driest.Quarter have also been thought to biologically affect toad distribution (Urban 2008?).
+Isothermality and PDQ have also been thought to biologically affect toad distribution, so their inclusion is reasonable (Elith et. al, 2010). Our model then produces something similar to the breeding_raster.
 
 ```{r, warning=F}
-rf_model <- randomForest(any_toads ~ Isothermality + Precipitation.of.Driest.Quarter, data=cell_df,
+rf_model<-randomForest(any_toads ~ Isothermality + Precipitation.of.Driest.Quarter, data=cell_df,
                          ntree=100, maxnodes=50)
 
-predictions <- predict(bioclim_stack, model = rf_model)
+predictions<-predict(bioclim_stack, model=rf_model)
 
 par(mfrow=c(1, 2))
 plot(predictions, main="Random Forest Model")
-plot(breeding, main="Mechanstic Model (Kearney 2009")
+plot(breeding, main="Mechanstic Model (Kearney et. al, 2008")
 ```
+
+
+We can see that the number of trees was sufficient for the error rate to stabilise, and isothermality was more useful than PDQ in predicting where toads are (has a higher inc node purity).
 
 ```{r}
-# Plotting model 
 plot(rf_model) 
-  
-# Variable importance plot 
 varImpPlot(rf_model) 
 ```
-
 
 ## ABM
 
@@ -264,48 +262,45 @@ each toad then:
 ### Behaviours and Attributes
 #### Moving
 
-Toads can only move to cells that are on land, as defined by the australia_raster. Its options are thus its $\leq8$ neighbouring cells (not including non-land cells), or its own cell. It chooses from these options randomly. In real life, toads on the western front have evolved longer legs (Phillips et. al, 2006), and move up to 5 times faster than the original toads that landed. To account for this, toads west of the NT-QLD border move three times each tick.
+Toads can only move to cells that are on land, as defined by the australia_raster. Its options are thus its $\leq8$ neighbouring cells (not including non-land cells), or its own cell. It chooses from these options randomly. In real life, toads on the western front have evolved longer legs (Elith et. al, 2008), and move up to 5 times faster than the original toads that landed. To account for this, toads west of the NT-QLD border move three times each tick.
 
 #### Energy
 
-Each toad has a given energy $E_T$, $E_T \in (\infty, 1]$.
+Each toad has a given energy $E_T$, $E_T \in (\infty, 1]$. Each cell has an 'affinity' value associated with it, $A_C$, where $A_C \in [-1, 1]$. After moving, the toad's energy is updated using the formula
 
-Each cell has an 'affinity' value associated with it, $A_C$, where $A \in [-1, 1]$. After moving, the toad's energy is updated using the formula
+$$ E_T=E_T + |\Delta_M| A_C $$ 
 
-$$ E_T = E_T + |\Delta_M| A_C $$ 
+Where $|\Delta_M|$ is the maximum absolute change in energy per turn. If $E_T + \Delta_M A_C > 1$, $E_T$ is set to 1.
 
-Where $|\Delta_M|$ is the maximum absolute change in energy per turn. However, $E_T + \Delta_M A_C > 1$, then $E_T$ is set to 1.
-
-The $A_C$ are defined by the following affinities raster
+The $A_C$ are defined by the following affinities raster, using the randomForest model.
 
 ```{r}
-predictions_agg <- resample(predictions, australia_raster)
-normalised <- (predictions_agg - minValue(predictions_agg))/(maxValue(predictions_agg) - minValue(predictions_agg)) # min-max normalise
-normalised[which(is.na(normalised[]))] <- 0
+predictions_agg<-resample(predictions, australia_raster)
+normalised<-(predictions_agg - minValue(predictions_agg))/(maxValue(predictions_agg) - minValue(predictions_agg)) # min-max normalise
+normalised[which(is.na(normalised[]))]<-0
 
-affinities <- (2*normalised - 1) # -1 to 1
+affinities<-(2*normalised - 1) # -1 to 1
 ```
 
 #### Dying
-If the toad's energy drops below die_limit, then it dies (is removed from the model/raster).
 
+If the toad's energy drops below a limit, then it dies.
 #### Reproducing
 
-If the toad's energy is above repr_limit, then a toad with the same energy and position as its parent is created.
+If the toad's energy is above a limit, then a toad with the same energy and position as its parent is created.
 
 ### Decreasing Running Time
 
-There are ~ 200 million cane toads in Australia, which a lowly Macbook cannot cope with. Thus, two measures were implemented to decrease computational cost of the model:
+The model produces too many cane toads for a lowly Macbook. Two measures were implemented to decrease computational cost of the model:
 
 1. Each tick, each cell can only have at most $4$ toads on it. Extras are killed.
 
-2. If a cell is surrounded by cells (king's move) with $\geq4$ toads, then toads on that cell won't update (move, change energy, etc.) the next time-step. These cells and toads are called "fixed".
-
+2. If a cell is surrounded by cells (king's move) with $\geq4$ toads, then toads on that cell won't update (move, change energy, etc.) the next time-step.
 
 
 ### Implementation
 
-Functions and classes not here can be found in 'ABM.R' in the GitHub repository.
+Functions and classes not here can be found in 'ABM.R' in the GitHub repository. Setting up the model:
 
 ```{r}
 max_abs_delta_energy<-4
@@ -333,10 +328,9 @@ n_cells_in_map<-cellStats(australia_raster, 'sum')
 ticks<-1:148
 ```
 
-add eval=FALSE if doesn't run. Then 
+And running it
 
-
-```{r run-model, eval=FALSE}
+```{r, eval=FALSE}
 for (tick in ticks) {
   moving_toads<-Filter(function(toad) {
                             return(fixed_cells[toad$pos] != 1 & sum_fixed_cells[toad$pos] < min_perm_fix)
@@ -347,11 +341,11 @@ for (tick in ticks) {
     
     toad$update_energy() 
 
-    if (toad$energy > repr_limit) { # reproduce
+    if (toad$energy > repr_limit) { #reproduce
       new_id<-last_id + 1
       last_id<-new_id
       alive_toads<-c(alive_toads, Toad$new(pos=toad$pos, energy=init_energy, id=new_id))
-    } else if (toad$energy < die_limit) { # die
+    } else if (toad$energy < die_limit) { #die
       toad$die()
     }
   }
@@ -363,116 +357,71 @@ for (tick in ticks) {
   tracker<-update_tracker(tracker, alive_toads)
   trackers[[tick]]<-tracker
 }
-
+tracker_brick<-brick(trackers[!sapply(trackers, is.null)])
 plot(tracker)
 ```
 
-
-## Plot Results
+The above takes too long to run (and chunk cache wasn't named when it was), so here is an already run version, that used ticks<-1:100
 
 ```{r}
-tracker_brick<-brick(trackers[!sapply(trackers, is.null)]) # if model is actually run
-tracker_brick<-brick("processed_data/model_trackers2.grd") # past output from model
+tracker_brick<-brick("processed_data/model_trackers2.grd") #past output from model
 ```
 
+### Plot Results
 
-
-```{r}
-tracker_brick <- brick(trackers[!sapply(trackers, is.null)])
+```{r, fig.height=7, fig.width=5}
 # Plot model data
-k <- 7
-yrs <- seq(1, nlayers(tracker_brick), by = k)
-plot_list_model <- lapply(yrs, function(i) {
-  tracker_polygons <- rasterToPolygons(flatten(tracker_brick[[i]]), fun = function(x) x > 0, dissolve = TRUE)
-  tracker_sf <- st_as_sf(tracker_polygons)
-  st_crs(tracker_sf) <- 4326
-
-  ggplot() +
-    geom_sf(data = australia_sf, fill = "grey", color = "black") +
-    geom_sf(data = tracker_sf, fill = "red", color = "black") +
-    theme_nothing()
+base_plot<-ggplot()+geom_sf(data=abm_sf, fill="grey", color="grey")+theme_nothing()
+yrs<-seq(1, nlayers(tracker_brick), by=7)
+plot_list_model<-lapply(yrs, function(i) {
+  tracker_sf<-st_as_sf(rasterToPolygons(flatten(tracker_brick[[i]]), fun=function(x) x>0, dissolve=TRUE))
+  st_crs(tracker_sf)<-4326
+  base_plot+geom_sf(data=tracker_sf, fill="red", color="grey")
 })
 
 # Plot actual data
-get_spatial_data <- function(data, year_limit) {
-  data %>%
-    filter(year <= year_limit) %>%
-    st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
+get_spatial_data<-function(data, year_limit) {
+  data%>%filter(year<=year_limit)%>%st_as_sf(coords=c("longitude", "latitude"), crs=4326)
 }
-base_years <- 1930 + (10/k)*(yrs - 1)
-years <- base_years[base_years < 2030]
-
-spatial_data_list <- lapply(years, get_spatial_data, data = df)
-plot_list_actual <- lapply(seq_along(years), function(i) {
-  ggplot() +
-    geom_sf(data = australia_sf, fill = "grey", color = "black") +
-    geom_sf(data = spatial_data_list[[i]], color = "red", size = 0.5) +
-    theme_nothing()
+base_years<-1930+(10/7)*(yrs-1)
+years<-base_years[base_years<2030]
+spatial_data_list<-lapply(years, get_spatial_data, data=df)
+plot_list_actual<-lapply(seq_along(years), function(i) {
+  base_plot+geom_sf(data=spatial_data_list[[i]], color="red", size=0.3)
 })
-```
 
-```{r, fig.height=7, fig.width=5}
-# All (ChatGPT, 2024)
-length_diff <- length(plot_list_model) - length(plot_list_actual)
-print(length_diff)
-if (length_diff >= 0) {
-  plot_list_actual <- append(plot_list_actual, rep(list(NULL), length_diff))
+# Combine
+length_diff<-length(plot_list_model)-length(plot_list_actual)
+if(length_diff>=0) {
+  plot_list_actual<-append(plot_list_actual, rep(list(NULL), length_diff))
 } else {
-  plot_list_model <- append(plot_list_model, rep(list(NULL), -length_diff))
+  plot_list_model<-append(plot_list_model, rep(list(NULL), -length_diff))
 }
 
-combined_plots <- lapply(seq(4,length(plot_list_actual), 3), function(i) {
+idxs<-seq(1,length(plot_list_actual), 2)
+combined_plots<-lapply(idxs, function(i) {
   list(plot_list_actual[[i]], plot_list_model[[i]])
 })
-
-# Replace NULLs with empty plots to maintain structure
-combined_plots <- lapply(combined_plots, function(p) {
-  lapply(p, function(x) if (is.null(x)) grid::nullGrob() else x)
+combined_plots<-lapply(combined_plots, function(p) {
+  lapply(p, function(x) if(is.null(x)) grid::nullGrob() else x)
 })
 
-# Arrange the plots in a grid layout
-row_labels <- base_years[seq(4,length(plot_list_actual), 3)]
-column_labels <- c("Actual", "Model")
+row_labels<- base_years[idxs]
+column_labels<-c("Actual", "Model")
+len<-unit(0.5, "npc")
+get_txt_grb<-function(label) {textGrob(label, x=len, y=len, just="center", gp=gpar(fontsize=14, fontface="bold"))}
+row_label_grobs<-lapply(row_labels, get_txt_grb)
+column_label_grobs<-lapply(column_labels, get_txt_grb)
 
-# Create text grobs for the labels
-
-
-row_label_grobs <- lapply(row_labels, function(label) {
-  textGrob(label, x = unit(0.5, "npc"), y = unit(0.5, "npc"), rot = 90, just = "center",
-           gp = gpar(fontsize = 14, fontface = "bold"))
-})
-
-column_label_grobs <- lapply(column_labels, function(label) {
-  textGrob(label, x = unit(0.5, "npc"), y = unit(0.5, "npc"), just = "center",
-           gp = gpar(fontsize = 14, fontface = "bold"))
-})
-
-
-# Combine the labels and plots into a grid
-model_plot <- grid.arrange(
-  grobs = c(
-    list(nullGrob(), column_label_grobs[[1]], column_label_grobs[[2]]), # Add column labels
+model_plot<-grid.arrange(
+  grobs=c(
+    list(nullGrob(), column_label_grobs[[1]], column_label_grobs[[2]]),
     do.call(c, lapply(1:length(combined_plots), function(i) {
       list(row_label_grobs[[i]], combined_plots[[i]][[1]], combined_plots[[i]][[2]])
-    }))
-  ),
-  ncol = 3,
-  heights = unit.c(unit(1, "lines"), rep(unit(1, "null"), length(combined_plots))),
-  widths = unit.c(unit(1, "lines"), unit(1, "null"), unit(1, "null")),
-  padding = unit(5, "mm"),
-  background = rectGrob(gp = gpar(fill = "#B9DD8B", col = NA))
-)
-```
+    }))),
+  ncol=3, heights=unit.c(unit(1, "lines"), rep(unit(1, "null"), length(combined_plots))),
+  widths=unit.c(unit(1.1, "cm"), unit(1, "null"), unit(1, "null")), padding=unit(5, "mm"))
 
-  top = textGrob("Model Results", gp = gpar(fontsize = 20, fontface = "bold")),
-
-```{r}
-ggsave("model_plot2.png", plot = model_plot, width = 5, height = 10, dpi = 300)
-```
-
-              
-```{r}
-#writeRaster(tracker_brick, "processed_data/model_trackers2", filetype="GTiff", overwrite=TRUE)
 ```
 
 # References
